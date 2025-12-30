@@ -134,9 +134,10 @@ if st.session_state.page == "Main Dashboard":
     st.title("📊 Synapse Pad Dashboard")
 
     col1, col2, col3 = st.columns(3)
-
-
-with col2:
+    with col1:
+        st.subheader("📅 Calendar / To-Do")
+        st.info("Tasks will appear here")
+    with col2:
     st.subheader("🧠 AI Study Timer")
 
     task_name = st.text_input("Task Name")
@@ -156,8 +157,8 @@ with col2:
                 "completed": False
             })
             st.success(f"✅ {task_name} added ({minutes} mins)")
-
-
+        
+    
     with col3:
         st.subheader("📚 Subjects")
         st.info("Subject blocks here")
