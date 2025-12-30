@@ -136,8 +136,29 @@ if st.session_state.page == "Main Dashboard":
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.subheader("📅 Calendar / To-Do")
-        st.info("Tasks will appear here")
+    st.subheader("📅 Calendar / To-Do")
+
+    if len(st.session_state.daily_tasks) == 0:
+        st.info("No tasks scheduled for today.")
+    else:
+        for idx, task in enumerate(st.session_state.daily_tasks):
+            completed = st.checkbox(
+                f"{task['name']} ({task['difficulty']}, {task['minutes']} mins)",
+                value=task.get("completed", False),
+                key=f"task_{idx}"
+            )
+            st.session_state.daily_tasks[idx]["completed"] = completed
+
+    # Calculate streak
+    def update_streak(tasks):
+        if len(tasks) == 0:
+            return 0
+        completed_all = all(task.get("completed", False) for task in tasks)
+        return 1 if completed_all else -1
+
+    streak_change = update_streak(st.session_state.daily_tasks)
+    st.metric("Today's Streak Change", streak_change)
+
 
     with col2:
         st.subheader("🧠 AI Study Timer")
