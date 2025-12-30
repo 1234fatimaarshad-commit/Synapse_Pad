@@ -81,13 +81,13 @@ def add_subject(subject_name):
 
         st.session_state.subjects[subject_name] = True
 
-# ---------------- PAGE ROUTER ----------------
+# ================= PAGE ROUTER =================
 if st.session_state.page == "Dashboard":
     st.title("📊 Main Dashboard")
 
     col1, col2, col3 = st.columns(3)
 
-    # ---------------- COLUMN 1: CALENDAR / TO-DO ----------------
+    # -------- COLUMN 1: TASKS --------
     with col1:
         st.subheader("📅 Daily Tasks")
 
@@ -100,55 +100,40 @@ if st.session_state.page == "Dashboard":
                 add_task(task_name, subject, difficulty)
                 st.success("Task added")
             else:
-                st.warning("Please fill all fields")
-
-        st.markdown("---")
+                st.warning("Fill all fields")
 
         for i, task in enumerate(st.session_state.daily_tasks):
             if task["date"] == date.today():
-                checked = st.checkbox(
+                st.checkbox(
                     f"{task['task']} ({task['subject']})",
-                    value=task["completed"],
                     key=f"task_{i}"
                 )
-                st.session_state.daily_tasks[i]["completed"] = checked
 
-    # ---------------- COLUMN 2: STRONG AI ----------------
+    # -------- COLUMN 2: STRONG AI --------
     with col2:
         st.subheader("⚡ Strong AI")
-
         st.button("📝 Generate Quiz")
         st.button("🧠 Generate Flashcards")
+        st.info("AI logic will be added later")
 
-        st.info("AI logic will be connected in later steps")
-
-    # ---------------- COLUMN 3: SUBJECT BLOCKS ----------------
+    # -------- COLUMN 3: SUBJECTS --------
     with col3:
-        st.subheader("📚 Subjects Overview")
+        st.subheader("📚 Subjects")
 
-        if len(st.session_state.subjects) == 0:
+        if not st.session_state.subjects:
             st.write("No subjects yet")
 
         for subject in st.session_state.subjects:
-            st.markdown(f"""
-            **{subject}**
-            - Attendance: 0%
-            - Study Time: 0 hrs
-            """)
-
+            st.markdown(f"**{subject}**")
 
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
 
-    new_subject = st.text_input("Add New Subject")
+    new_subject = st.text_input("New Subject Name")
 
     if st.button("Create Subject"):
         add_subject(new_subject)
         st.success("Subject created")
-def attendance_allowed():
-    current_time = datetime.now().time()
-    lock_time = datetime.strptime("00:00", "%H:%M").time()
-    return current_time < lock_time
 
     st.markdown("---")
 
@@ -175,8 +160,8 @@ def attendance_allowed():
             else:
                 st.warning("Attendance locked after 12:00 AM")
         else:
-            st.info("Attendance already marked for today")
+            st.info("Attendance already marked")
 
 elif st.session_state.page == "Global AI":
     st.title("🤖 Global AI")
-    st.write("Quiz • Flashcards • Study Help")
+    st.write("Central AI tools coming soon")
