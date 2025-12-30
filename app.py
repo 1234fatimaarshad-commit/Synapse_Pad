@@ -9,19 +9,16 @@ st.set_page_config(page_title="Synapse Pad", layout="wide")
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Create subjects table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS subjects (
     name TEXT PRIMARY KEY,
     quiz_avg REAL DEFAULT 0,
     self_quiz REAL DEFAULT 0,
-    attendance INTEGER DEFAULT 0,
-    total_study_time INTEGER DEFAULT 0
+    attendance INTEGER DEFAULT 0
 )
 """)
 conn.commit()
 
-# Create tasks table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,109 +43,105 @@ if "subjects" not in st.session_state:
         for row in rows:
             if row[0]:
                 st.session_state.subjects.append(row[0])
-    except sqlite3.Error:
+    except:
         st.session_state.subjects = []
 
 # ------------------- Helper Functions -------------------
 def difficulty_minutes(level):
-    return {"Easy": 25, "Medium": 45, "Hard": 75}.get(level, 0)
+    return {"Easy":25,"Medium":45,"Hard":75}.get(level,0)
 
 def total_scheduled_minutes(tasks):
     return sum(task["minutes"] for task in tasks)
 
 def attendance_allowed():
-    return True  # Always allow marking for demo; you can modify for 12AM lock
+    return True  # Always allow marking for demo
 
 def get_attendance_percentage(subject):
     try:
-        cursor.execute("SELECT attendance FROM subjects WHERE name=?", (subject,))
+        cursor.execute("SELECT attendance FROM subjects WHERE name=?",(subject,))
         res = cursor.fetchone()
         return res[0] if res else 0
-    except sqlite3.Error:
+    except:
         return 0
 
 def efficiency_score(subject):
     try:
-        cursor.execute("SELECT quiz_avg, self_quiz FROM subjects WHERE name=?", (subject,))
+        cursor.execute("SELECT quiz_avg,self_quiz FROM subjects WHERE name=?",(subject,))
         res = cursor.fetchone()
-        quiz_avg, self_quiz = res if res else (0, 0)
+        quiz_avg,self_quiz = res if res else (0,0)
         attendance = get_attendance_percentage(subject)
-        score = (quiz_avg * 0.4) + (attendance * 0.3) + (self_quiz * 0.3)
-        return round(score, 2)
-    except sqlite3.Error:
+        score = (quiz_avg*0.4)+(attendance*0.3)+(self_quiz*0.3)
+        return round(score,2)
+    except:
         return 0
 
 def update_streak(tasks):
-    if len(tasks) == 0:
+    if len(tasks)==0:
         return 0
-    completed_all = all(task.get("completed", False) for task in tasks)
+    completed_all = all(task.get("completed",False) for task in tasks)
     return 1 if completed_all else -1
 
 def add_subject(name):
     if not name.strip():
         return
     try:
-        cursor.execute("INSERT OR IGNORE INTO subjects (name) VALUES (?)", (name,))
+        cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)",(name,))
         conn.commit()
         if name not in st.session_state.subjects:
             st.session_state.subjects.append(name)
-    except sqlite3.Error:
+    except:
         st.error("Failed to add subject.")
 
-def add_task(name, difficulty, task_date):
+def add_task(name,difficulty,task_date):
     if not name.strip():
         return
     minutes = difficulty_minutes(difficulty)
     try:
         cursor.execute(
-            "INSERT INTO tasks (name, difficulty, minutes, task_date) VALUES (?, ?, ?, ?)",
-            (name, difficulty, minutes, task_date)
+            "INSERT INTO tasks(name,difficulty,minutes,task_date) VALUES (?,?,?,?)",
+            (name,difficulty,minutes,task_date)
         )
         conn.commit()
-    except sqlite3.Error:
+    except:
         st.error("Failed to add task.")
 
-def get_tasks_for_date(selected_date):
+def get_tasks_for_date(task_date):
     try:
-        cursor.execute(
-            "SELECT id, name, difficulty, minutes, completed FROM tasks WHERE task_date=?",
-            (selected_date,)
-        )
+        cursor.execute("SELECT id,name,difficulty,minutes,completed FROM tasks WHERE task_date=?",(task_date,))
         rows = cursor.fetchall()
-        tasks = []
+        tasks=[]
         for row in rows:
             tasks.append({
-                "id": row[0],
-                "name": row[1],
-                "difficulty": row[2],
-                "minutes": row[3],
-                "completed": bool(row[4])
+                "id":row[0],
+                "name":row[1],
+                "difficulty":row[2],
+                "minutes":row[3],
+                "completed":bool(row[4])
             })
         return tasks
-    except sqlite3.Error:
+    except:
         return []
 
-def toggle_task_completion(task_id, completed):
+def toggle_task_completion(task_id,completed):
     try:
-        cursor.execute("UPDATE tasks SET completed=? WHERE id=?", (int(completed), task_id))
+        cursor.execute("UPDATE tasks SET completed=? WHERE id=?",(int(completed),task_id))
         conn.commit()
-    except sqlite3.Error:
-        st.error("Failed to update task completion.")
+    except:
+        st.error("Failed to update task.")
 
 def generate_quiz_or_flashcard(subject):
     return f"Generated a quiz/flashcard for {subject}!"
 
-
-# ------------------- Sidebar Navigation -------------------
+# ------------------- Sidebar -------------------
 with st.sidebar:
     st.title("Synapse Pad")
-    pages = ["Main Dashboard", "Subject Explorer", "Global AI"]
-    st.session_state.page = st.radio("Navigate", pages)
+    pages = ["Main Dashboard","Subject Explorer","Global AI"]
+    st.session_state.page = st.radio("Navigate",pages)
 
 # ------------------- Page Router -------------------
-if st.session_state.page == "Main Dashboard":
+if st.session_state.page=="Main Dashboard":
     st.title("📊 Synapse Pad Dashboard")
-    col1, col2, col3 = st.columns(3)
+    col1,col2,col3 = st.columns(3)
 
     # -------- Column 1: Tasks --------
     with col1:
@@ -167,21 +160,21 @@ if st.session_state.page == "Main Dashboard":
                     key=f"task_{task['id']}"
                 )
                 if completed != task["completed"]:
-                    toggle_task_completion(task["id"], completed)
+                    toggle_task_completion(task["id"],completed)
 
         streak_change = update_streak(tasks)
-        st.metric("Today's Streak Change", streak_change)
+        st.metric("Today's Streak Change",streak_change)
 
-    # -------- Column 2: Add Task / Timer --------
+    # -------- Column 2: Add Task --------
     with col2:
         st.subheader("🧠 AI Study Timer")
         task_name = st.text_input("Task Name")
-        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
+        difficulty = st.selectbox("Difficulty", ["Easy","Medium","Hard"])
         task_date_input = st.date_input("Task Date", date.today())
         task_date_str = task_date_input.strftime("%Y-%m-%d")
 
         if st.button("Add Task"):
-            add_task(task_name, difficulty, task_date_str)
+            add_task(task_name,difficulty,task_date_str)
             st.success(f"Task '{task_name}' added for {task_date_str}")
 
     # -------- Column 3: Subjects --------
@@ -197,29 +190,10 @@ if st.session_state.page == "Main Dashboard":
             eff = efficiency_score(subj)
             st.write(f"**{subj}** — Attendance: {att}%, Efficiency: {eff}")
 
-elif st.session_state.page == "Subject Explorer":
+elif st.session_state.page=="Subject Explorer":
     st.title("📚 Subject Explorer")
     for subj in st.session_state.subjects:
         st.subheader(subj)
         st.write(f"Attendance: {get_attendance_percentage(subj)}%")
-        st.write(f"Efficiency Score: {efficiency_score(subj)}")
+        st.write(f"Efficiency Score: {effi
 
-        if attendance_allowed():
-            if st.button(f"Mark Attendance: {subj}"):
-                cursor.execute(
-                    "UPDATE subjects SET attendance = attendance + 1 WHERE name=?", (subj,)
-                )
-                conn.commit()
-                st.success(f"Attendance marked for {subj}")
-        else:
-            st.info("Attendance locked after 12:00 AM")
-
-elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI")
-    if st.session_state.subjects:
-        subj_choice = st.selectbox("Select Subject", st.session_state.subjects)
-        if st.button("Generate Quiz/Flashcard"):
-            result = generate_quiz_or_flashcard(subj_choice)
-            st.success(result)
-    else:
-        st.info("No subjects added yet.")
