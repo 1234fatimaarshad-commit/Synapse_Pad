@@ -5,8 +5,10 @@ from datetime import datetime, date
 st.set_page_config(page_title="Synapse Pad", layout="wide")
 if "page" not in st.session_state:
     st.session_state.page = "Main Dashboard"
-    if "daily_tasks" not in st.session_state:
+
+if "daily_tasks" not in st.session_state:
     st.session_state.daily_tasks = []
+
 
 # ---------- DATABASE ----------
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
