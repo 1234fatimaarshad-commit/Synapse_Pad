@@ -10,7 +10,9 @@ cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS subjects (
-    name TEXT PRIMARY KEY
+    name TEXT PRIMARY KEY,
+    quiz_avg REAL DEFAULT 0,
+    self_quiz REAL DEFAULT 0
 )
 """)
 
@@ -52,6 +54,39 @@ def add_subject(name):
 def attendance_allowed():
     return datetime.now().time() < datetime.strptime("00:00", "%H:%M").time()
 
+
+def efficiency_score(subject):
+    cursor.execute(
+        "SELECT quiz_avg, self_quiz FROM subjects WHERE name=?",
+        (subject,)
+    )
+    result = cursor.fetchone()
+
+    if result is None:
+        quiz_avg, self_quiz = 0, 0
+    else:
+        quiz_avg, self_quiz = result
+
+    attendance = get_attendance_percentage(subject)
+
+    score = (
+        (quiz_avg * 0.4) +
+        (attendance * 0.3) +
+        (self_quiz * 0.3)
+    )
+
+    return round(score, 2)
+
+
+def update_streak(tasks):
+    if len(tasks) == 0:
+        return 0
+
+    completed = all(task.get("completed", False) for task in tasks)
+
+    return 1 if completed else -1
+
+
 # ---------- SIDEBAR ----------
 st.sidebar.title("🧠 Synapse Pad")
 st.session_state.page = st.sidebar.radio(
@@ -77,6 +112,11 @@ elif st.session_state.page == "Subject Explorer":
 
     for subject in st.session_state.subjects:
         st.subheader(subject)
+attendance_percent = get_attendance_percentage(subject)
+st.progress(attendance_percent / 100)
+st.write(f"Attendance: {attendance_percent}%")
+score = efficiency_score(subject)
+st.metric("Efficiency Score", score)
 
         today = date.today().isoformat()
         cursor.execute(
@@ -87,6 +127,24 @@ elif st.session_state.page == "Subject Explorer":
 
         if record is None:
             if attendance_allowed():
+                def get_attendance_percentage(subject):
+    cursor.execute(
+        "SELECT COUNT(*) FROM attendance WHERE subject=?",
+        (subject,)
+    )
+    total = cursor.fetchone()[0]
+
+    if total == 0:
+        return 0
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM attendance WHERE subject=? AND present=1",
+        (subject,)
+    )
+    present = cursor.fetchone()[0]
+
+    return round((present / total) * 100, 2)
+
                 if st.button(f"Mark Present ({subject})"):
                     cursor.execute(
                         "INSERT INTO attendance VALUES (?, ?, ?)",
