@@ -1,6 +1,6 @@
 import streamlit as st
 import sqlite3
-from datetime import datetime, time
+from datetime import datetime, date, timedelta
 
 # ------------------- Page Config -------------------
 st.set_page_config(page_title="Synapse Pad", layout="wide")
@@ -9,7 +9,6 @@ st.set_page_config(page_title="Synapse Pad", layout="wide")
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Create subjects table if not exists
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS subjects (
     name TEXT PRIMARY KEY,
@@ -21,33 +20,40 @@ CREATE TABLE IF NOT EXISTS subjects (
 """)
 conn.commit()
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    difficulty TEXT,
+    minutes INTEGER,
+    task_date TEXT,
+    completed INTEGER DEFAULT 0
+)
+""")
+conn.commit()
+
 # ------------------- Session State Init -------------------
 if "page" not in st.session_state:
     st.session_state.page = "Main Dashboard"
 
+if "subjects" not in st.session_state:
+    st.session_state.subjects = []
+    cursor.execute("SELECT name FROM subjects")
+    for row in cursor.fetchall():
+        st.session_state.subjects.append(row[0])
+
 if "daily_tasks" not in st.session_state:
     st.session_state.daily_tasks = []
 
-if "subjects" not in st.session_state:
-    # Load subjects from DB
-    cursor.execute("SELECT name FROM subjects")
-    st.session_state.subjects = [row[0] for row in cursor.fetchall()]
-
 # ------------------- Helper Functions -------------------
 def difficulty_minutes(level):
-    if level == "Easy":
-        return 25
-    elif level == "Medium":
-        return 45
-    elif level == "Hard":
-        return 75
-    return 0
+    return {"Easy": 25, "Medium": 45, "Hard": 75}.get(level, 0)
 
 def total_scheduled_minutes(tasks):
     return sum(task["minutes"] for task in tasks)
 
 def attendance_allowed():
-    return datetime.now().time() < time(0, 0)
+    return datetime.now().time() < datetime.strptime("00:00","%H:%M").time()
 
 def get_attendance_percentage(subject):
     cursor.execute("SELECT attendance FROM subjects WHERE name=?", (subject,))
@@ -55,18 +61,15 @@ def get_attendance_percentage(subject):
     return res[0] if res else 0
 
 def efficiency_score(subject):
-    cursor.execute(
-        "SELECT quiz_avg, self_quiz FROM subjects WHERE name=?",
-        (subject,)
-    )
+    cursor.execute("SELECT quiz_avg, self_quiz FROM subjects WHERE name=?", (subject,))
     res = cursor.fetchone()
     quiz_avg, self_quiz = res if res else (0,0)
     attendance = get_attendance_percentage(subject)
-    score = (quiz_avg * 0.4) + (attendance * 0.3) + (self_quiz * 0.3)
+    score = (quiz_avg*0.4) + (attendance*0.3) + (self_quiz*0.3)
     return round(score,2)
 
 def update_streak(tasks):
-    if len(tasks) == 0:
+    if len(tasks)==0:
         return 0
     completed_all = all(task.get("completed", False) for task in tasks)
     return 1 if completed_all else -1
@@ -74,96 +77,22 @@ def update_streak(tasks):
 def add_subject(name):
     cursor.execute("INSERT OR IGNORE INTO subjects (name) VALUES (?)", (name,))
     conn.commit()
-    st.session_state.subjects.append(name)
+    if name not in st.session_state.subjects:
+        st.session_state.subjects.append(name)
 
-# ------------------- Sidebar Navigation -------------------
-with st.sidebar:
-    st.title("Synapse Pad")
-    pages = ["Main Dashboard", "Subject Explorer", "Global AI"]
-    choice = st.radio("Navigate", pages)
-    st.session_state.page = choice
+def add_task(name, difficulty, task_date):
+    minutes = difficulty_minutes(difficulty)
+    cursor.execute("INSERT INTO tasks (name, difficulty, minutes, task_date) VALUES (?,?,?,?)",
+                   (name,difficulty,minutes,task_date))
+    conn.commit()
 
-# ------------------- Page Router -------------------
-if st.session_state.page == "Main Dashboard":
-    st.title("📊 Synapse Pad Dashboard")
+def get_tasks_for_date(selected_date):
+    cursor.execute("SELECT id,name,difficulty,minutes,completed FROM tasks WHERE task_date=?", (selected_date,))
+    rows = cursor.fetchall()
+    tasks=[]
+    for row in rows:
+        tasks.append({"id":row[0], "name":row[1], "difficulty":row[2], "minutes":row[3], "completed": bool(row[4])})
+    return tasks
 
-    col1, col2, col3 = st.columns(3)
-
-    # ---------------- Column 1: Calendar / To-Do ----------------
-    with col1:
-        st.subheader("📅 Calendar / To-Do")
-
-        if len(st.session_state.daily_tasks) == 0:
-            st.info("No tasks scheduled for today.")
-        else:
-            for idx, task in enumerate(st.session_state.daily_tasks):
-                completed = st.checkbox(
-                    f"{task['name']} ({task['difficulty']}, {task['minutes']} mins)",
-                    value=task.get("completed", False),
-                    key=f"task_{idx}"
-                )
-                st.session_state.daily_tasks[idx]["completed"] = completed
-
-        streak_change = update_streak(st.session_state.daily_tasks)
-        st.metric("Today's Streak Change", streak_change)
-
-    # ---------------- Column 2: AI Study Timer ----------------
-    with col2:
-        st.subheader("🧠 AI Study Timer")
-
-        task_name = st.text_input("Task Name")
-        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
-
-        if st.button("Generate Study Task"):
-            minutes = difficulty_minutes(difficulty)
-            scheduled = total_scheduled_minutes(st.session_state.daily_tasks)
-
-            if scheduled + minutes > 480:
-                st.error("❌ Daily limit exceeded (8 hours). Reschedule.")
-            else:
-                st.session_state.daily_tasks.append({
-                    "name": task_name,
-                    "difficulty": difficulty,
-                    "minutes": minutes,
-                    "completed": False
-                })
-                st.success(f"✅ {task_name} added ({minutes} mins)")
-
-    # ---------------- Column 3: Subjects ----------------
-    with col3:
-        st.subheader("📚 Subjects")
-        new_subject = st.text_input("Add Subject")
-        if st.button("Add"):
-            if new_subject:
-                add_subject(new_subject)
-                st.success(f"Subject '{new_subject}' added!")
-
-        for subj in st.session_state.subjects:
-            att = get_attendance_percentage(subj)
-            eff = efficiency_score(subj)
-            st.write(f"**{subj}** — Attendance: {att}%, Efficiency: {eff}")
-
-elif st.session_state.page == "Subject Explorer":
-    st.title("📚 Subject Explorer")
-
-    for subj in st.session_state.subjects:
-        st.subheader(subj)
-        att = get_attendance_percentage(subj)
-        eff = efficiency_score(subj)
-        st.write(f"Attendance: {att}%")
-        st.write(f"Efficiency Score: {eff}")
-
-        if attendance_allowed():
-            if st.button(f"Mark Attendance: {subj}"):
-                cursor.execute(
-                    "UPDATE subjects SET attendance = attendance + 1 WHERE name=?",
-                    (subj,)
-                )
-                conn.commit()
-                st.success(f"Attendance marked for {subj}")
-        else:
-            st.info("Attendance locked after 12:00 AM")
-
-elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI")
-    st.info("Global AI assistant will generate quizzes & flashcards here.")
+def toggle_task_completion(task_id, completed):
+    cursor.execute("UPDATE tasks SET completed=? WHERE id=
