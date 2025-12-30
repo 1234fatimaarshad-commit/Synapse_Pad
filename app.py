@@ -141,6 +141,7 @@ with col1:
 
 with col2:
     st.subheader("🧠 AI Study Timer")
+
     task_name = st.text_input("Task Name")
     difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
 
@@ -150,9 +151,14 @@ with col2:
 
         if scheduled + minutes > 480:
             st.error("❌ Daily limit exceeded (8 hours). Reschedule.")
-        else   # <- ERROR: nothing after else!
-elif st.session_state.page == "Subject Explorer":
-    st.title("Subjects")
+        else:
+            st.session_state.daily_tasks.append({
+                "name": task_name,
+                "difficulty": difficulty,
+                "minutes": minutes,
+                "completed": False
+            })
+            st.success(f"✅ {task_name} added ({minutes} mins)")
 
 with col3:
     st.subheader("📚 Subjects")
