@@ -135,30 +135,35 @@ if st.session_state.page == "Main Dashboard":
 
     col1, col2, col3 = st.columns(3)
 
-   with col1:
-    st.subheader("📅 Calendar / To-Do")
+    # ---------------- Column 1: Calendar / To-Do ----------------
+    with col1:
+        st.subheader("📅 Calendar / To-Do")
 
-    if len(st.session_state.daily_tasks) == 0:
-        st.info("No tasks scheduled for today.")
-    else:
-        for idx, task in enumerate(st.session_state.daily_tasks):
-            completed = st.checkbox(
-                f"{task['name']} ({task['difficulty']}, {task['minutes']} mins)",
-                value=task.get("completed", False),
-                key=f"task_{idx}"
-            )
-            st.session_state.daily_tasks[idx]["completed"] = completed
+        if "daily_tasks" not in st.session_state:
+            st.session_state.daily_tasks = []
 
-    # Calculate streak
-    def update_streak(tasks):
-        if len(tasks) == 0:
-            return 0
-        completed_all = all(task.get("completed", False) for task in tasks)
-        return 1 if completed_all else -1
+        if len(st.session_state.daily_tasks) == 0:
+            st.info("No tasks scheduled for today.")
+        else:
+            for idx, task in enumerate(st.session_state.daily_tasks):
+                completed = st.checkbox(
+                    f"{task['name']} ({task['difficulty']}, {task['minutes']} mins)",
+                    value=task.get("completed", False),
+                    key=f"task_{idx}"
+                )
+                st.session_state.daily_tasks[idx]["completed"] = completed
 
-    streak_change = update_streak(st.session_state.daily_tasks)
-    st.metric("Today's Streak Change", streak_change)
+        # Streak calculation
+        def update_streak(tasks):
+            if len(tasks) == 0:
+                return 0
+            completed_all = all(task.get("completed", False) for task in tasks)
+            return 1 if completed_all else -1
 
+        streak_change = update_streak(st.session_state.daily_tasks)
+        st.metric("Today's Streak Change", streak_change)
+
+    # ---------------- Column 2: AI Study Timer ----------------
     with col2:
         st.subheader("🧠 AI Study Timer")
 
@@ -166,6 +171,18 @@ if st.session_state.page == "Main Dashboard":
         difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
 
         if st.button("Generate Study Task"):
+            def difficulty_minutes(level):
+                if level == "Easy":
+                    return 25
+                elif level == "Medium":
+                    return 45
+                elif level == "Hard":
+                    return 75
+                return 0
+
+            def total_scheduled_minutes(tasks):
+                return sum(task["minutes"] for task in tasks)
+
             minutes = difficulty_minutes(difficulty)
             scheduled = total_scheduled_minutes(st.session_state.daily_tasks)
 
@@ -180,16 +197,19 @@ if st.session_state.page == "Main Dashboard":
                 })
                 st.success(f"✅ {task_name} added ({minutes} mins)")
 
+    # ---------------- Column 3: Subjects ----------------
     with col3:
         st.subheader("📚 Subjects")
         st.info("Subject blocks here")
 
 
+# ---------------- Subject Explorer Page ----------------
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
     st.info("Click a subject to open its page")
 
 
+# ---------------- Global AI Page ----------------
 elif st.session_state.page == "Global AI":
     st.title("🌍 Global AI")
     st.info("Global AI assistant will live here")
