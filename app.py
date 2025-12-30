@@ -86,6 +86,23 @@ def update_streak(tasks):
 
     return 1 if completed else -1
 
+def difficulty_to_minutes(level):
+    if level == "Easy":
+        return 30
+    elif level == "Medium":
+        return 60
+    elif level == "Hard":
+        return 90
+    return 0
+
+
+def total_scheduled_minutes(tasks):
+    today = date.today()
+    return sum(
+        difficulty_to_minutes(t["difficulty"])
+        for t in tasks
+        if t.get("date") == today
+    )
 
 # ---------- SIDEBAR ----------
 st.sidebar.title("🧠 Synapse Pad")
@@ -93,70 +110,32 @@ st.session_state.page = st.sidebar.radio(
     "Navigate",
     ["Dashboard", "Subject Explorer", "Global AI"]
 )
+# ================= PAGE ROUTER =================
 
-# ---------- PAGE ROUTER ----------
-if st.session_state.page == "Dashboard":
-    st.title("📊 Main Dashboard")
-    st.write("Dashboard will be expanded next")
+if st.session_state.page == "Main Dashboard":
+    st.title("📊 Synapse Pad Dashboard")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.subheader("📅 Calendar / To-Do")
+        st.info("Tasks will appear here")
+
+    with col2:
+        st.subheader("🧠 Strong AI")
+        st.info("AI tools coming here")
+
+    with col3:
+        st.subheader("📚 Subjects")
+        st.info("Subject blocks here")
+
 
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
+    st.info("Click a subject to open its page")
 
-    subject_name = st.text_input("New Subject")
-
-    if st.button("Create Subject"):
-        add_subject(subject_name)
-        st.success("Subject created")
-
-    st.markdown("---")
-
-    for subject in st.session_state.subjects:
-        st.subheader(subject)
-attendance_percent = get_attendance_percentage(subject)
-st.progress(attendance_percent / 100)
-st.write(f"Attendance: {attendance_percent}%")
-score = efficiency_score(subject)
-st.metric("Efficiency Score", score)
-
-        today = date.today().isoformat()
-        cursor.execute(
-            "SELECT present FROM attendance WHERE subject=? AND date=?",
-            (subject, today)
-        )
-        record = cursor.fetchone()
-
-        if record is None:
-            if attendance_allowed():
-                def get_attendance_percentage(subject):
-    cursor.execute(
-        "SELECT COUNT(*) FROM attendance WHERE subject=?",
-        (subject,)
-    )
-    total = cursor.fetchone()[0]
-
-    if total == 0:
-        return 0
-
-    cursor.execute(
-        "SELECT COUNT(*) FROM attendance WHERE subject=? AND present=1",
-        (subject,)
-    )
-    present = cursor.fetchone()[0]
-
-    return round((present / total) * 100, 2)
-
-                if st.button(f"Mark Present ({subject})"):
-                    cursor.execute(
-                        "INSERT INTO attendance VALUES (?, ?, ?)",
-                        (subject, today, 1)
-                    )
-                    conn.commit()
-                    st.success("Attendance marked")
-            else:
-                st.warning("Attendance locked after 12:00 AM")
-        else:
-            st.info("Attendance already marked")
 
 elif st.session_state.page == "Global AI":
-    st.title("🤖 Global AI")
-    st.write("AI tools coming soon")
+    st.title("🌍 Global AI")
+    st.info("Global AI assistant will live here")
+
