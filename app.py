@@ -162,6 +162,6 @@ elif st.session_state.page == "Subject Explorer":
         else:
             st.info("Attendance already marked")
 
-elif st.session_state.page == "Global AI":
-    st.title("🤖 Global AI")
-    st.write("Central AI tools coming soon")
+        elif st.session_state.page == "Global AI":
+             st.title("🤖 Global AI")
+             st.write("Central AI tools coming soon")
