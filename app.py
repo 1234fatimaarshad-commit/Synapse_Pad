@@ -138,7 +138,6 @@ if st.session_state.page == "Main Dashboard":
         st.subheader("📅 Calendar / To-Do")
         st.info("Tasks will appear here")
     with col2:
-    
     with col3:
         st.subheader("📚 Subjects")
         st.info("Subject blocks here")
