@@ -3,6 +3,10 @@ import sqlite3
 from datetime import datetime, date
 
 st.set_page_config(page_title="Synapse Pad", layout="wide")
+if "page" not in st.session_state:
+    st.session_state.page = "Main Dashboard"
+    if "daily_tasks" not in st.session_state:
+    st.session_state.daily_tasks = []
 
 # ---------- DATABASE ----------
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
@@ -103,6 +107,18 @@ def total_scheduled_minutes(tasks):
         for t in tasks
         if t.get("date") == today
     )
+def difficulty_minutes(level):
+    if level == "Easy":
+        return 25
+    elif level == "Medium":
+        return 45
+    elif level == "Hard":
+        return 75
+    return 0
+
+
+def total_scheduled_minutes(tasks):
+    return sum(task["minutes"] for task in tasks)
 
 # ---------- SIDEBAR ----------
 st.sidebar.title("🧠 Synapse Pad")
@@ -122,8 +138,26 @@ if st.session_state.page == "Main Dashboard":
         st.info("Tasks will appear here")
 
     with col2:
-        st.subheader("🧠 Strong AI")
-        st.info("AI tools coming here")
+    st.subheader("🧠 AI Study Timer")
+
+    task_name = st.text_input("Task Name")
+    difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
+
+    if st.button("Generate Study Task"):
+        minutes = difficulty_minutes(difficulty)
+        scheduled = total_scheduled_minutes(st.session_state.daily_tasks)
+
+        if scheduled + minutes > 480:
+            st.error("❌ Daily limit exceeded (8 hours). Reschedule.")
+        else:
+            st.session_state.daily_tasks.append({
+                "name": task_name,
+                "difficulty": difficulty,
+                "minutes": minutes,
+                "completed": False
+            })
+            st.success(f"✅ {task_name} added ({minutes} mins)")
+
 
     with col3:
         st.subheader("📚 Subjects")
