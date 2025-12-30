@@ -140,12 +140,12 @@ with col1:
     st.info("Tasks will appear here")
 
 with col2:
-    pass  # placeholder so Python is happy
+    st.subheader("🧠 AI Study Timer")
+    st.info("Timer will go here")  # placeholder, required so Python block is not empty
 
 with col3:
     st.subheader("📚 Subjects")
     st.info("Subject blocks here")
-
 
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
