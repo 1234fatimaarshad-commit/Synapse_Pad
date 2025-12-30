@@ -135,7 +135,7 @@ if st.session_state.page == "Main Dashboard":
 
     col1, col2, col3 = st.columns(3)
 
-    with col1:
+   with col1:
     st.subheader("📅 Calendar / To-Do")
 
     if len(st.session_state.daily_tasks) == 0:
@@ -158,7 +158,6 @@ if st.session_state.page == "Main Dashboard":
 
     streak_change = update_streak(st.session_state.daily_tasks)
     st.metric("Today's Streak Change", streak_change)
-
 
     with col2:
         st.subheader("🧠 AI Study Timer")
