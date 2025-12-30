@@ -134,13 +134,17 @@ if st.session_state.page == "Main Dashboard":
     st.title("📊 Synapse Pad Dashboard")
 
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.subheader("📅 Calendar / To-Do")
-        st.info("Tasks will appear here")
-    with col2:
-    with col3:
-        st.subheader("📚 Subjects")
-        st.info("Subject blocks here")
+
+with col1:
+    st.subheader("📅 Calendar / To-Do")
+    st.info("Tasks will appear here")
+
+with col2:
+    pass  # placeholder so Python is happy
+
+with col3:
+    st.subheader("📚 Subjects")
+    st.info("Subject blocks here")
 
 
 elif st.session_state.page == "Subject Explorer":
