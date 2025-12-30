@@ -1,12 +1,10 @@
-# ================= IMPORTS =================
 import streamlit as st
 import sqlite3
 from datetime import datetime, date
 
-# ================= PAGE CONFIG =================
 st.set_page_config(page_title="Synapse Pad", layout="wide")
 
-# ================= DATABASE =================
+# ---------- DATABASE ----------
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -27,14 +25,14 @@ CREATE TABLE IF NOT EXISTS attendance (
 
 conn.commit()
 
-# ================= SESSION STATE =================
+# ---------- SESSION STATE ----------
 if "page" not in st.session_state:
     st.session_state.page = "Dashboard"
 
 if "subjects" not in st.session_state:
     st.session_state.subjects = {}
 
-# ================= FUNCTIONS =================
+# ---------- FUNCTIONS ----------
 def add_subject(name):
     if not name:
         return
@@ -54,17 +52,17 @@ def add_subject(name):
 def attendance_allowed():
     return datetime.now().time() < datetime.strptime("00:00", "%H:%M").time()
 
-# ================= SIDEBAR =================
+# ---------- SIDEBAR ----------
 st.sidebar.title("🧠 Synapse Pad")
 st.session_state.page = st.sidebar.radio(
     "Navigate",
     ["Dashboard", "Subject Explorer", "Global AI"]
 )
 
-# ================= PAGE ROUTER =================
+# ---------- PAGE ROUTER ----------
 if st.session_state.page == "Dashboard":
     st.title("📊 Main Dashboard")
-    st.write("Dashboard content coming next")
+    st.write("Dashboard will be expanded next")
 
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
