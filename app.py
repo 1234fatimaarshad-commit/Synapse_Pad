@@ -1,19 +1,18 @@
+# ================= IMPORTS =================
 import streamlit as st
-import pandas as pd
 import sqlite3
 from datetime import datetime, date
-# ---------------- DATABASE ----------------
 
+# ================= PAGE CONFIG =================
+st.set_page_config(page_title="Synapse Pad", layout="wide")
+
+# ================= DATABASE =================
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS subjects (
-    name TEXT PRIMARY KEY,
-    attendance REAL DEFAULT 0,
-    study_time INTEGER DEFAULT 0,
-    quiz_avg REAL DEFAULT 0,
-    self_quiz REAL DEFAULT 0
+    name TEXT PRIMARY KEY
 )
 """)
 
@@ -28,111 +27,52 @@ CREATE TABLE IF NOT EXISTS attendance (
 
 conn.commit()
 
-
-# ---------------- CONFIG ----------------
-st.set_page_config(
-    page_title="Synapse Pad",
-    layout="wide"
-)
-
-# ---------------- SESSION STATE INIT ----------------
+# ================= SESSION STATE =================
 if "page" not in st.session_state:
     st.session_state.page = "Dashboard"
 
 if "subjects" not in st.session_state:
-    st.session_state.subjects = {}  # max 100 subjects
+    st.session_state.subjects = {}
 
-if "streak" not in st.session_state:
-    st.session_state.streak = 0
+# ================= FUNCTIONS =================
+def add_subject(name):
+    if not name:
+        return
+    if name in st.session_state.subjects:
+        return
+    if len(st.session_state.subjects) >= 100:
+        st.error("Maximum 100 subjects allowed")
+        return
 
-if "daily_tasks" not in st.session_state:
-    st.session_state.daily_tasks = []
+    cursor.execute(
+        "INSERT OR IGNORE INTO subjects (name) VALUES (?)",
+        (name,)
+    )
+    conn.commit()
+    st.session_state.subjects[name] = True
 
-# ---------------- SIDEBAR ----------------
+def attendance_allowed():
+    return datetime.now().time() < datetime.strptime("00:00", "%H:%M").time()
+
+# ================= SIDEBAR =================
 st.sidebar.title("🧠 Synapse Pad")
-
-page = st.sidebar.radio(
+st.session_state.page = st.sidebar.radio(
     "Navigate",
     ["Dashboard", "Subject Explorer", "Global AI"]
 )
 
-st.session_state.page = page
-# ---------------- HELPER FUNCTIONS ----------------
-
-def add_task(task_name, subject, difficulty):
-    st.session_state.daily_tasks.append({
-        "task": task_name,
-        "subject": subject,
-        "difficulty": difficulty,
-        "completed": False,
-        "date": date.today()
-    })
-def add_subject(subject_name):
-    if subject_name and subject_name not in st.session_state.subjects:
-        if len(st.session_state.subjects) >= 100:
-            st.error("Maximum 100 subjects allowed")
-            return
-
-        cursor.execute(
-            "INSERT OR IGNORE INTO subjects (name) VALUES (?)",
-            (subject_name,)
-        )
-        conn.commit()
-
-        st.session_state.subjects[subject_name] = True
-
 # ================= PAGE ROUTER =================
 if st.session_state.page == "Dashboard":
     st.title("📊 Main Dashboard")
-
-    col1, col2, col3 = st.columns(3)
-
-    # -------- COLUMN 1: TASKS --------
-    with col1:
-        st.subheader("📅 Daily Tasks")
-
-        task_name = st.text_input("Task Name")
-        subject = st.text_input("Subject Name")
-        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
-
-        if st.button("Add Task"):
-            if task_name and subject:
-                add_task(task_name, subject, difficulty)
-                st.success("Task added")
-            else:
-                st.warning("Fill all fields")
-
-        for i, task in enumerate(st.session_state.daily_tasks):
-            if task["date"] == date.today():
-                st.checkbox(
-                    f"{task['task']} ({task['subject']})",
-                    key=f"task_{i}"
-                )
-
-    # -------- COLUMN 2: STRONG AI --------
-    with col2:
-        st.subheader("⚡ Strong AI")
-        st.button("📝 Generate Quiz")
-        st.button("🧠 Generate Flashcards")
-        st.info("AI logic will be added later")
-
-    # -------- COLUMN 3: SUBJECTS --------
-    with col3:
-        st.subheader("📚 Subjects")
-
-        if not st.session_state.subjects:
-            st.write("No subjects yet")
-
-        for subject in st.session_state.subjects:
-            st.markdown(f"**{subject}**")
+    st.write("Dashboard content coming next")
 
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
 
-    new_subject = st.text_input("New Subject Name")
+    subject_name = st.text_input("New Subject")
 
     if st.button("Create Subject"):
-        add_subject(new_subject)
+        add_subject(subject_name)
         st.success("Subject created")
 
     st.markdown("---")
@@ -141,7 +81,6 @@ elif st.session_state.page == "Subject Explorer":
         st.subheader(subject)
 
         today = date.today().isoformat()
-
         cursor.execute(
             "SELECT present FROM attendance WHERE subject=? AND date=?",
             (subject, today)
@@ -162,6 +101,6 @@ elif st.session_state.page == "Subject Explorer":
         else:
             st.info("Attendance already marked")
 
-        elif st.session_state.page == "Global AI":
-             st.title("🤖 Global AI")
-             st.write("Central AI tools coming soon")
+elif st.session_state.page == "Global AI":
+    st.title("🤖 Global AI")
+    st.write("AI tools coming soon")
