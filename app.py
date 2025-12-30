@@ -141,7 +141,18 @@ with col1:
 
 with col2:
     st.subheader("🧠 AI Study Timer")
-    st.info("Timer will go here")  # placeholder, required so Python block is not empty
+    task_name = st.text_input("Task Name")
+    difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
+
+    if st.button("Generate Study Task"):
+        minutes = difficulty_minutes(difficulty)
+        scheduled = total_scheduled_minutes(st.session_state.daily_tasks)
+
+        if scheduled + minutes > 480:
+            st.error("❌ Daily limit exceeded (8 hours). Reschedule.")
+        else   # <- ERROR: nothing after else!
+elif st.session_state.page == "Subject Explorer":
+    st.title("Subjects")
 
 with col3:
     st.subheader("📚 Subjects")
