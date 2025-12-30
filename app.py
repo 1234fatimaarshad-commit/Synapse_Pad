@@ -138,26 +138,6 @@ if st.session_state.page == "Main Dashboard":
         st.subheader("📅 Calendar / To-Do")
         st.info("Tasks will appear here")
     with col2:
-    st.subheader("🧠 AI Study Timer")
-
-    task_name = st.text_input("Task Name")
-    difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
-
-    if st.button("Generate Study Task"):
-        minutes = difficulty_minutes(difficulty)
-        scheduled = total_scheduled_minutes(st.session_state.daily_tasks)
-
-        if scheduled + minutes > 480:
-            st.error("❌ Daily limit exceeded (8 hours). Reschedule.")
-        else:
-            st.session_state.daily_tasks.append({
-                "name": task_name,
-                "difficulty": difficulty,
-                "minutes": minutes,
-                "completed": False
-            })
-            st.success(f"✅ {task_name} added ({minutes} mins)")
-        
     
     with col3:
         st.subheader("📚 Subjects")
