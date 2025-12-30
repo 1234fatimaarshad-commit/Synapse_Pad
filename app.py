@@ -135,11 +135,8 @@ if st.session_state.page == "Main Dashboard":
 
     col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.subheader("📅 Calendar / To-Do")
-        st.info("Tasks will appear here")
 
-    with col2:
+with col2:
     st.subheader("🧠 AI Study Timer")
 
     task_name = st.text_input("Task Name")
