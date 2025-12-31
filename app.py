@@ -139,9 +139,10 @@ with st.sidebar:
     st.session_state.page = st.radio("Navigate",pages)
 
 # ------------------- Page Router -------------------
-if st.session_state.page=="Main Dashboard":
+if st.session_state.page == "Main Dashboard":
     st.title("📊 Synapse Pad Dashboard")
-    col1,col2,col3 = st.columns(3)
+
+    col1, col2, col3 = st.columns(3)
 
     # -------- Column 1: Tasks --------
     with col1:
@@ -160,27 +161,28 @@ if st.session_state.page=="Main Dashboard":
                     key=f"task_{task['id']}"
                 )
                 if completed != task["completed"]:
-                    toggle_task_completion(task["id"],completed)
+                    toggle_task_completion(task["id"], completed)
 
         streak_change = update_streak(tasks)
-        st.metric("Today's Streak Change",streak_change)
+        st.metric("Today's Streak Change", streak_change)
 
     # -------- Column 2: Add Task --------
     with col2:
         st.subheader("🧠 AI Study Timer")
         task_name = st.text_input("Task Name")
-        difficulty = st.selectbox("Difficulty", ["Easy","Medium","Hard"])
+        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
         task_date_input = st.date_input("Task Date", date.today())
         task_date_str = task_date_input.strftime("%Y-%m-%d")
 
         if st.button("Add Task"):
-            add_task(task_name,difficulty,task_date_str)
+            add_task(task_name, difficulty, task_date_str)
             st.success(f"Task '{task_name}' added for {task_date_str}")
 
     # -------- Column 3: Subjects --------
     with col3:
         st.subheader("📚 Subjects")
         new_subject = st.text_input("Add Subject")
+
         if st.button("Add Subject"):
             add_subject(new_subject)
             st.success(f"Subject '{new_subject}' added!")
@@ -190,12 +192,21 @@ if st.session_state.page=="Main Dashboard":
             eff = efficiency_score(subj)
             st.write(f"**{subj}** — Attendance: {att}%, Efficiency: {eff}")
 
-        elif st.session_state.page == "Subject Explorer":
-            st.title("📚 Subject Explorer")
 
+elif st.session_state.page == "Subject Explorer":
+    st.title("📚 Subject Explorer")
+
+    if not st.session_state.subjects:
+        st.info("No subjects added yet.")
+    else:
         for subj in st.session_state.subjects:
             st.subheader(subj)
             st.write(f"Attendance: {get_attendance_percentage(subj)}%")
             st.write(f"Efficiency Score: {efficiency_score(subj)}")
+
+
+elif st.session_state.page == "Global AI":
+    st.title("🌍 Global AI")
+    st.info("AI chatbot & generators will appear here.")
 
 
