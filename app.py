@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 import sqlite3
 from datetime import datetime, date
@@ -144,6 +145,18 @@ def toggle_task_completion(task_id,completed):
 def generate_quiz_or_flashcard(subject):
     return f"Generated a quiz/flashcard for {subject}!"
 
+def add_subject(name):
+    if not name.strip():
+        return
+    try:
+        cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)", (name,))
+        conn.commit()
+        if name not in st.session_state.subjects:
+            st.session_state.subjects.append(name)
+            st.rerun() 
+    except Exception as e:
+        st.error(f"Failed to add subject: {e}")
+
 # ------------------- Sidebar -------------------
 with st.sidebar:
     st.title("Synapse Pad")
@@ -193,17 +206,21 @@ if st.session_state.page == "Main Dashboard":
     # -------- Column 3: Subjects --------
     with col3:
         st.subheader("📚 Subjects")
-        new_subject = st.text_input("Add Subject")
+        # Use a unique key for the text input
+        new_subject_name = st.text_input("Enter Subject Name", key="subject_input_field")
 
         if st.button("Add Subject"):
-            add_subject(new_subject)
-            st.success(f"Subject '{new_subject}' added!")
+            if len(st.session_state.subjects) < 100:
+                add_subject(new_subject_name) # This CALLS the function at the top
+            else:
+                st.error("Limit of 100 subjects reached.")
 
+        # Display the list
+        st.write("---")
         for subj in st.session_state.subjects:
             att = get_attendance_percentage(subj)
             eff = efficiency_score(subj)
-            st.write(f"**{subj}** — Attendance: {att}%, Efficiency: {eff}")
-
+            st.info(f"**{subj}**\nAtt: {att}% | Eff: {eff}")
 
 # Check if it's currently midnight (or past a certain cut-off)
 current_hour = datetime.now().hour
@@ -222,7 +239,27 @@ if st.button(f"Mark Class Attended: {subj}", disabled=attendance_disabled):
 
 
 elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI")
-    st.info("AI chatbot & generators will appear here.")
+    st.title("🌍 Global AI Assistant")
+    
+    # Replace the text below with your actual token from Hugging Face
+    HF_TOKEN = "paste_your_token_here" 
+    
+    user_input = st.text_input("Ask Synapse AI anything (e.g., 'Make a quiz for Biology'):")
 
-
+    if st.button("Generate Response"):
+        if HF_TOKEN == "paste_your_token_here":
+            st.error("Please provide your Hugging Face Token first!")
+        else:
+            with st.spinner("AI is thinking..."):
+                # This is the "Bridge" to the AI brain
+                API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+                headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+                
+                response = requests.post(API_URL, headers=headers, json={"inputs": user_input})
+                
+                try:
+                    # Show the AI's answer
+                    result = response.json()
+                    st.write(result[0]['generated_text'])
+                except:
+                    st.error("AI is busy or Token is wrong. Try again in a minute!")
