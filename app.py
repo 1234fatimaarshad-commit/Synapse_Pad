@@ -92,18 +92,30 @@ def add_subject(name):
     except:
         st.error("Failed to add subject.")
 
-def add_task(name,difficulty,task_date):
+def add_task(name, difficulty, task_date):
     if not name.strip():
         return
+    
     minutes = difficulty_minutes(difficulty)
+    
+    # AI Logic: Check total time for that day
+    tasks_that_day = get_tasks_for_date(task_date)
+    current_total = sum(t['minutes'] for t in tasks_that_day)
+    
+    if (current_total + minutes) > 480: # 480 mins = 8 hours
+        st.error(f"⚠️ Overbooked! Adding this would exceed 8 hours. AI recommends rescheduling.")
+        return False
+    
     try:
         cursor.execute(
             "INSERT INTO tasks(name,difficulty,minutes,task_date) VALUES (?,?,?,?)",
-            (name,difficulty,minutes,task_date)
+            (name, difficulty, minutes, task_date)
         )
         conn.commit()
+        return True
     except:
         st.error("Failed to add task.")
+        return False
 
 def get_tasks_for_date(task_date):
     try:
