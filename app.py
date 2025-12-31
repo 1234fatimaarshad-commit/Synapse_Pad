@@ -196,13 +196,10 @@ if st.session_state.page == "Main Dashboard":
 elif st.session_state.page == "Subject Explorer":
     st.title("📚 Subject Explorer")
 
-    if not st.session_state.subjects:
-        st.info("No subjects added yet.")
-    else:
-        for subj in st.session_state.subjects:
-            st.subheader(subj)
-            st.write(f"Attendance: {get_attendance_percentage(subj)}%")
-            st.write(f"Efficiency Score: {efficiency_score(subj)}")
+    for subj in st.session_state.subjects:
+        st.subheader(subj)
+        st.write(f"Attendance: {get_attendance_percentage(subj)}%")
+        st.write(f"Efficiency Score: {efficiency_score(subj)}")
 
 
 elif st.session_state.page == "Global AI":
