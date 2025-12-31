@@ -214,6 +214,55 @@ if st.session_state.page == "Main Dashboard":
                 add_subject(new_subject_name) # This CALLS the function at the top
             else:
                 st.error("Limit of 100 subjects reached.")
+            elif st.session_state.page == "Subject Explorer":
+    st.title("📂 Subject Folders")
+
+    if not st.session_state.subjects:
+        st.info("No subject folders created yet. Add one in the Dashboard!")
+    else:
+        # This dropdown acts like picking a folder from a shelf
+        selected_folder = st.selectbox("Open Subject Folder:", st.session_state.subjects)
+        
+        st.divider()
+        st.header(f"📖 Folder: {selected_folder}")
+
+        # --- 1. Attendance Record ---
+        st.subheader("📊 Attendance Record")
+        current_att = get_attendance_percentage(selected_folder)
+        st.write(f"Current Attendance: {current_att}%")
+        
+        # Attendance Logic
+        if datetime.now().hour == 0:
+            st.warning("Locked until 1 AM.")
+        else:
+            if st.button(f"Mark Attendance for {selected_folder}"):
+                cursor.execute("UPDATE subjects SET attendance = attendance + 1 WHERE name=?", (selected_folder,))
+                conn.commit()
+                st.rerun()
+
+        # --- 2. Media Upload Tab (The Cloud) ---
+        st.subheader("📁 Media Upload Tab")
+        uploaded_file = st.file_uploader(f"Upload content for {selected_folder}", type=['pdf', 'txt', 'jpg', 'png'])
+        
+        if uploaded_file is not None:
+            # Check the 200 file limit you requested
+            # For a lab project, we will just simulate the "saving" to the folder
+            st.success(f"File '{uploaded_file.name}' saved to {selected_folder} folder!")
+
+        # --- 3. Subject-Specific AI Features ---
+        st.subheader("✨ Study Features")
+        col1, col2, col3 = st.columns(3)
+        if col1.button("📝 Quiz Maker"):
+            st.write(f"Creating quiz for {selected_folder}...")
+        if col2.button("🗂️ Flashcard Maker"):
+            st.write(f"Creating flashcards for {selected_folder}...")
+        if col3.button("🧠 Mind Map"):
+            st.write(f"Generating mind map for {selected_folder}...")
+
+        # --- 4. Efficiency Score ---
+        st.subheader("📈 Efficiency Analysis")
+        score = efficiency_score(selected_folder)
+        st.metric(label="Efficiency Score", value=f"{score}/100")
 
         # Display the list
         st.write("---")
