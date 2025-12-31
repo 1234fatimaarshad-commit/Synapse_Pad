@@ -195,5 +195,6 @@ elif st.session_state.page=="Subject Explorer":
     for subj in st.session_state.subjects:
         st.subheader(subj)
         st.write(f"Attendance: {get_attendance_percentage(subj)}%")
-        st.write(f"Efficiency Score: {effi
+       st.write(f"Efficiency Score: {efficiency_score(subj)}")
+
 
