@@ -205,13 +205,20 @@ if st.session_state.page == "Main Dashboard":
             st.write(f"**{subj}** — Attendance: {att}%, Efficiency: {eff}")
 
 
-elif st.session_state.page == "Subject Explorer":
-    st.title("📚 Subject Explorer")
+# Check if it's currently midnight (or past a certain cut-off)
+current_hour = datetime.now().hour
 
-    for subj in st.session_state.subjects:
-        st.subheader(subj)
-        st.write(f"Attendance: {get_attendance_percentage(subj)}%")
-        st.write(f"Efficiency Score: {efficiency_score(subj)}")
+if current_hour == 0: # 0 is 12 AM (Midnight)
+    st.warning("🕒 Attendance is locked between 12:00 AM and 1:00 AM for processing.")
+    attendance_disabled = True
+else:
+    attendance_disabled = False
+
+if st.button(f"Mark Class Attended: {subj}", disabled=attendance_disabled):
+    # Logic to +1 attendance in SQLite
+    cursor.execute("UPDATE subjects SET attendance = attendance + 1 WHERE name=?", (subj,))
+    conn.commit()
+    st.success("Attendance Updated!")
 
 
 elif st.session_state.page == "Global AI":
