@@ -190,12 +190,12 @@ if st.session_state.page=="Main Dashboard":
             eff = efficiency_score(subj)
             st.write(f"**{subj}** — Attendance: {att}%, Efficiency: {eff}")
 
-elif st.session_state.page == "Subject Explorer":
-    st.title("📚 Subject Explorer")
+        elif st.session_state.page == "Subject Explorer":
+            st.title("📚 Subject Explorer")
 
-    for subj in st.session_state.subjects:
-        st.subheader(subj)
-        st.write(f"Attendance: {get_attendance_percentage(subj)}%")
-        st.write(f"Efficiency Score: {efficiency_score(subj)}")
+        for subj in st.session_state.subjects:
+            st.subheader(subj)
+            st.write(f"Attendance: {get_attendance_percentage(subj)}%")
+            st.write(f"Efficiency Score: {efficiency_score(subj)}")
 
 
