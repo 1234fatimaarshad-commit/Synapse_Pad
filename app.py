@@ -129,7 +129,7 @@ if st.session_state.page == "Main Dashboard":
         t_diff = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
         if st.button("Add Task"):
             add_task(t_name, t_diff, sel_date.strftime("%Y-%m-%d"))
-
+77777777
     with col3:
         st.subheader("📚 Subjects")
         new_sub = st.text_input("New Subject")
@@ -165,7 +165,7 @@ elif st.session_state.page == "Global AI":
     hf_token = "PASTE_YOUR_TOKEN_HERE"
     user_q = st.text_input("Ask AI:")
     if st.button("Generate"):
-        if hf_token != "PASTE_YOUR_TOKEN_HERE":
+        if hf_token = st.secrets["HF_TOKEN"]:
             # Real AI API Call
             API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
             headers = {"Authorization": f"Bearer {hf_token}"}
