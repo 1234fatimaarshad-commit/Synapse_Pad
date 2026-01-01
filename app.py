@@ -162,14 +162,14 @@ elif st.session_state.page == "Subject Explorer":
 
 elif st.session_state.page == "Global AI":
     st.title("🌍 Global AI Assistant")
-    hf_token = "PASTE_YOUR_TOKEN_HERE"
+    
+    # This line tells the app to pull the token from the "Secrets" area
+    try:
+        hf_token = st.secrets["HF_TOKEN"]
+    except:
+        hf_token = "NOT_FOUND"
+    
     user_q = st.text_input("Ask AI:")
     if st.button("Generate"):
-        if hf_token = st.secrets["HF_TOKEN"]:
-            # Real AI API Call
-            API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-            headers = {"Authorization": f"Bearer {hf_token}"}
-            res = requests.post(API_URL, headers=headers, json={"inputs": user_q})
-            st.write(res.json()[0]['generated_text'])
-        else:
-            st.error("Paste your token in the code first!")
+        if hf_token != "NOT_FOUND":
+            # (Rest of your API code stays the same)
