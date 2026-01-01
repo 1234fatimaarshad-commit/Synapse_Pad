@@ -159,16 +159,15 @@ elif st.session_state.page == "Subject Explorer":
 
         st.file_uploader("Upload to Cloud Folder")
         st.write(f"Efficiency Score: {efficiency_score(choice)}")
-
 elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI Assistant (Llama-3)")
+    st.title("🌍 Global AI Assistant")
     
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
         hf_token = "NOT_FOUND"
     
-    user_q = st.text_input("Ask anything (ChatGPT style):")
+    user_q = st.text_input("Ask Synapse AI anything:")
 
     if st.button("Generate"):
         if hf_token == "NOT_FOUND":
@@ -176,37 +175,35 @@ elif st.session_state.page == "Global AI":
         elif not user_q.strip():
             st.warning("Please type a question.")
         else:
-            with st.spinner("Llama-3 is thinking..."):
+            with st.spinner("AI is thinking..."):
                 try:
-                    # UPDATED: Using Llama-3-8B (The most stable 'ChatGPT-like' model)
-                    API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+                    # GOOGLE GEMMA: The most reliable model for free APIs
+                    API_URL = "https://api-inference.huggingface.co/models/google/gemma-1.1-7b-it"
                     headers = {"Authorization": f"Bearer {hf_token}"}
                     
-                    # We add 'wait_for_model' so it doesn't give a 503 error
-                    payload = {
-                        "inputs": f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n{user_q}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
-                        "options": {"wait_for_model": True}
-                    }
-                    
-                    response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
+                    # Simplified request
+                    response = requests.post(API_URL, headers=headers, json={"inputs": user_q}, timeout=20)
                     
                     if response.status_code == 200:
                         output = response.json()
                         
-                        # Logic to extract the text safely
-                        if isinstance(output, list):
-                            full_text = output[0].get('generated_text', '')
+                        # Extract text
+                        if isinstance(output, list) and len(output) > 0:
+                            ai_text = output[0].get('generated_text', 'No response text.')
                         else:
-                            full_text = output.get('generated_text', '')
+                            ai_text = str(output)
                         
-                        # Llama often repeats the prompt, this cleans it to show only the answer
-                        answer = full_text.split("<|assistant|>")[-1].strip()
+                        # Remove the user's question from the start of the answer if it appears
+                        clean_answer = ai_text.replace(user_q, "").strip()
                         
-                        st.markdown("### 🤖 Synapse AI says:")
-                        st.write(answer if answer else full_text)
+                        st.markdown("### 🤖 Response:")
+                        st.write(clean_answer if clean_answer else ai_text)
+                        
                     elif response.status_code == 503:
-                        st.info("The AI 'brain' is waking up. Please click Generate again in 10 seconds!")
+                        st.info("The AI is loading. Please wait 10 seconds and click Generate again!")
+                    elif response.status_code == 401:
+                        st.error("Error 401: Your Token is invalid. Check your Streamlit Secrets!")
                     else:
-                        st.error(f"Error {response.status_code}: Please check if your Token is 'Read' type.")
+                        st.error(f"Error {response.status_code}: Try a simpler question.")
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
