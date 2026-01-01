@@ -188,11 +188,14 @@ elif st.session_state.page == "Global AI":
                     
                     if response.status_code == 200:
                         output = response.json()
-                        # Clean up the response text
-                        ai_text = output[0]['generated_text']
+                        
+                        # This part handles how the AI text is extracted correctly
+                        if isinstance(output, list) and len(output) > 0:
+                            ai_text = output[0].get('generated_text', 'No text found.')
+                        elif isinstance(output, dict):
+                            ai_text = output.get('generated_text', 'No text found.')
+                        else:
+                            ai_text = str(output) # Fallback if format is unknown
+                            
                         st.markdown("### AI Response:")
                         st.write(ai_text)
-                    else:
-                        st.error(f"AI Error: Received status code {response.status_code}")
-                except Exception as e:
-                    st.error(f"Connection failed: {e}")
