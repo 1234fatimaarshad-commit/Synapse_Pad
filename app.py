@@ -33,9 +33,6 @@ CREATE TABLE IF NOT EXISTS tasks (
 conn.commit()
 
 # ------------------- Session State -------------------
-if "page" not in st.session_state:
-    st.session_state.page = "Main Dashboard"
-
 if "subjects" not in st.session_state:
     st.session_state.subjects = []
     try:
@@ -83,14 +80,11 @@ def add_subject(name):
 def add_task(name, difficulty, task_date):
     if not name.strip(): return
     minutes = difficulty_minutes(difficulty)
-    
-    # AI Logic: Check 8-hour limit
     tasks = get_tasks_for_date(task_date)
     current_mins = sum(t['minutes'] for t in tasks)
     if (current_mins + minutes) > 480:
         st.error("⚠️ Overbooked! AI suggests rescheduling (Limit 8 hours).")
         return
-
     cursor.execute("INSERT INTO tasks(name,difficulty,minutes,task_date) VALUES (?,?,?,?)",(name,difficulty,minutes,task_date))
     conn.commit()
     st.success("Task added!")
@@ -104,14 +98,9 @@ def toggle_task_completion(task_id,completed):
     cursor.execute("UPDATE tasks SET completed=? WHERE id=?",(int(completed),task_id))
     conn.commit()
 
-# ------------------- Sidebar -------------------
-with st.sidebar:
-    st.title("Synapse Pad")
-    st.session_state.page = st.radio("Navigate", ["Main Dashboard","Subject Explorer","Global AI"])
+# ------------------- Page Functions -------------------
 
-# ------------------- Page Router -------------------
-
-if st.session_state.page == "Main Dashboard":
+def dashboard_page():
     st.title("📊 Synapse Pad Dashboard")
     col1, col2, col3 = st.columns(3)
 
@@ -134,34 +123,36 @@ if st.session_state.page == "Main Dashboard":
         st.subheader("📚 Subjects")
         new_sub = st.text_input("New Subject")
         if st.button("Create"):
-            if len(st.session_state.subjects) < 100: add_subject(new_sub)
+            if len(st.session_state.subjects) < 100: 
+                add_subject(new_sub)
 
-elif st.session_state.page == "Subject Explorer":
-    st.title("📂 Subject Folders")
-    if not st.session_state.subjects:
-        st.info("Add a subject first!")
-    else:
-        # FOLDER LOGIC
-        choice = st.selectbox("Open Folder:", st.session_state.subjects)
-        st.header(f"Subject: {choice}")
-        
-        # Attendance + 12AM Lock
-        st.write(f"Attendance: {get_attendance_percentage(choice)}%")
-        hour = datetime.now().hour
-        if hour == 0:
-            st.warning("Locked at 12 AM")
-            st.button("Mark Attendance", disabled=True)
-        else:
-            if st.button("Mark Attendance"):
-                cursor.execute("UPDATE subjects SET attendance = attendance + 1 WHERE name=?",(choice,))
-                conn.commit()
-                st.rerun()
-
-        st.file_uploader("Upload to Cloud Folder")
-        st.write(f"Efficiency Score: {efficiency_score(choice)}")
-elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI Assistant")
+def subject_folder_page(choice):
+    st.title(f"📂 Subject: {choice}")
+    st.divider()
     
+    # Attendance + 12AM Lock
+    st.subheader("📊 Attendance Record")
+    st.write(f"Current Attendance: {get_attendance_percentage(choice)}%")
+    hour = datetime.now().hour
+    if hour == 0:
+        st.warning("Locked at 12 AM")
+        st.button("Mark Attendance", disabled=True)
+    else:
+        if st.button("Mark Attendance"):
+            cursor.execute("UPDATE subjects SET attendance = attendance + 1 WHERE name=?",(choice,))
+            conn.commit()
+            st.rerun()
+
+    st.divider()
+    st.subheader("📁 Media Cloud")
+    st.file_uploader(f"Upload to {choice} folder")
+    
+    st.divider()
+    st.subheader("📈 Analytics")
+    st.write(f"Efficiency Score: {efficiency_score(choice)}")
+
+def global_ai_page():
+    st.title("🌍 Global AI Assistant")
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
@@ -177,35 +168,51 @@ elif st.session_state.page == "Global AI":
         else:
             with st.spinner("AI is thinking..."):
                 try:
-                    # NEW 2026 UNIVERSAL ROUTER URL
                     API_URL = "https://router.huggingface.co/v1/chat/completions"
-                    
-                    headers = {
-                        "Authorization": f"Bearer {hf_token}",
-                        "Content-Type": "application/json"
-                    }
-                    
-                    # The new format requires a "messages" list
+                    headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
                     payload = {
                         "model": "meta-llama/Llama-3.2-3B-Instruct", 
-                        "messages": [
-                            {"role": "user", "content": user_q}
-                        ],
+                        "messages": [{"role": "user", "content": user_q}],
                         "max_tokens": 500,
                         "stream": False
                     }
-                    
                     response = requests.post(API_URL, headers=headers, json=payload, timeout=25)
-                    
                     if response.status_code == 200:
                         output = response.json()
-                        # Extract the answer from the new OpenAI-style response format
                         answer = output['choices'][0]['message']['content']
                         st.markdown("### 🤖 Synapse AI Says:")
                         st.write(answer)
-                    elif response.status_code == 404:
-                        st.error("Error 404: Hugging Face has changed the endpoint again. Please notify the developer.")
                     else:
                         st.error(f"AI Error {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Connection failed: {e}")
+
+# ------------------- New Navigation Logic -------------------
+
+# 1. Main Pages
+pg_dashboard = st.Page(dashboard_page, title="Main Dashboard", icon="📊", default=True)
+pg_ai = st.Page(global_ai_page, title="Global AI Assistant", icon="🌍")
+
+# 2. Dynamic Subject Folder Pages
+subject_pages = []
+for sub in st.session_state.subjects:
+    # This creates a separate clickable page for every subject in your sidebar
+    sp = st.Page(lambda s=sub: subject_folder_page(s), title=sub, icon="📁")
+    subject_pages.append(sp)
+
+# 3. Create Navigation Tree
+if not subject_pages:
+    # Placeholder if no subjects exist yet
+    nav_dict = {
+        "Menu": [pg_dashboard, pg_ai],
+        "Subject Explorer": [st.Page(lambda: st.info("Create a subject in the Dashboard to see folders here!"), title="No Folders yet")]
+    }
+else:
+    nav_dict = {
+        "Menu": [pg_dashboard, pg_ai],
+        "Subject Explorer": subject_pages
+    }
+
+# 4. Render Navigation
+pg = st.navigation(nav_dict)
+pg.run()
