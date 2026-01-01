@@ -161,41 +161,52 @@ elif st.session_state.page == "Subject Explorer":
         st.write(f"Efficiency Score: {efficiency_score(choice)}")
 
 elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI Assistant")
+    st.title("🌍 Global AI Assistant (Llama-3)")
     
-    # 1. Securely get the token from Streamlit Secrets
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
         hf_token = "NOT_FOUND"
     
-    user_q = st.text_input("Ask Synapse AI a study question:")
+    user_q = st.text_input("Ask anything (ChatGPT style):")
 
     if st.button("Generate"):
-        # 2. Check if the token exists
         if hf_token == "NOT_FOUND":
-            st.error("Secret Token not found! Please add HF_TOKEN to Streamlit Secrets.")
+            st.error("Secret Token not found in Streamlit Settings!")
         elif not user_q.strip():
-            st.warning("Please enter a question first.")
+            st.warning("Please type a question.")
         else:
-            with st.spinner("AI is thinking..."):
+            with st.spinner("Llama-3 is thinking..."):
                 try:
-                    # Change the model from v0.2 to v0.3 (more stable)
-                    API_URL = "https://api-inference.huggingface.co/models/google/gemma-7b-it"
+                    # UPDATED: Using Llama-3-8B (The most stable 'ChatGPT-like' model)
+                    API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
                     headers = {"Authorization": f"Bearer {hf_token}"}
                     
-                    response = requests.post(API_URL, headers=headers, json={"inputs": user_q}, timeout=10)
+                    # We add 'wait_for_model' so it doesn't give a 503 error
+                    payload = {
+                        "inputs": f"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n{user_q}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+                        "options": {"wait_for_model": True}
+                    }
+                    
+                    response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
                     
                     if response.status_code == 200:
                         output = response.json()
                         
-                        # This part handles how the AI text is extracted correctly
-                        if isinstance(output, list) and len(output) > 0:
-                            ai_text = output[0].get('generated_text', 'No text found.')
-                        elif isinstance(output, dict):
-                            ai_text = output.get('generated_text', 'No text found.')
+                        # Logic to extract the text safely
+                        if isinstance(output, list):
+                            full_text = output[0].get('generated_text', '')
                         else:
-                            ai_text = str(output) # Fallback if format is unknown
-                            
-                        st.markdown("### AI Response:")
-                        st.write(ai_text)
+                            full_text = output.get('generated_text', '')
+                        
+                        # Llama often repeats the prompt, this cleans it to show only the answer
+                        answer = full_text.split("<|assistant|>")[-1].strip()
+                        
+                        st.markdown("### 🤖 Synapse AI says:")
+                        st.write(answer if answer else full_text)
+                    elif response.status_code == 503:
+                        st.info("The AI 'brain' is waking up. Please click Generate again in 10 seconds!")
+                    else:
+                        st.error(f"Error {response.status_code}: Please check if your Token is 'Read' type.")
+                except Exception as e:
+                    st.error(f"Connection Error: {e}")
