@@ -180,8 +180,8 @@ elif st.session_state.page == "Global AI":
         else:
             with st.spinner("AI is thinking..."):
                 try:
-                    # 3. The actual API connection code
-                    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+                    # Change the model from v0.2 to v0.3 (more stable)
+                    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
                     headers = {"Authorization": f"Bearer {hf_token}"}
                     
                     response = requests.post(API_URL, headers=headers, json={"inputs": user_q}, timeout=10)
