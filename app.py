@@ -66,8 +66,7 @@ def efficiency_score(subject):
         return 0
 
 def add_subject(name):
-    if not name.strip():
-        return
+    if not name.strip(): return
     try:
         cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)",(name,))
         conn.commit()
@@ -76,6 +75,17 @@ def add_subject(name):
             st.rerun()
     except:
         st.error("Failed to add subject.")
+
+def delete_subject(name):
+    try:
+        cursor.execute("DELETE FROM subjects WHERE name=?", (name,))
+        conn.commit()
+        if name in st.session_state.subjects:
+            st.session_state.subjects.remove(name)
+        st.success(f"Deleted {name}")
+        st.rerun()
+    except:
+        st.error("Delete failed.")
 
 def add_task(name, difficulty, task_date):
     if not name.strip(): return
@@ -101,7 +111,7 @@ def toggle_task_completion(task_id,completed):
 # ------------------- Page Functions -------------------
 
 def dashboard_page():
-    st.title("📊 Synapse Pad Dashboard")
+    st.title("📊 Main Dashboard")
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -120,23 +130,30 @@ def dashboard_page():
             add_task(t_name, t_diff, sel_date.strftime("%Y-%m-%d"))
 
     with col3:
-        st.subheader("📚 Subjects")
-        new_sub = st.text_input("New Subject")
+        st.subheader("📚 Create Folder")
+        new_sub = st.text_input("Folder Name (Subject)")
         if st.button("Create"):
             if len(st.session_state.subjects) < 100: 
                 add_subject(new_sub)
 
 def subject_folder_page(choice):
-    st.title(f"📂 Subject: {choice}")
+    st.title(f"📁 Folder: {choice}")
+    
+    col_a, col_b = st.columns([3, 1])
+    with col_b:
+        if st.button("🗑️ Delete Folder", use_container_width=True):
+            delete_subject(choice)
+
     st.divider()
     
-    # Attendance + 12AM Lock
+    # Efficiency Metric
+    score = efficiency_score(choice)
+    st.metric("Subject Efficiency Score", f"{score}%", delta=f"{score-50}%" if score > 50 else f"{score-50}%")
+    
     st.subheader("📊 Attendance Record")
-    st.write(f"Current Attendance: {get_attendance_percentage(choice)}%")
-    hour = datetime.now().hour
-    if hour == 0:
+    st.write(f"Attendance Rate: {get_attendance_percentage(choice)}%")
+    if datetime.now().hour == 0:
         st.warning("Locked at 12 AM")
-        st.button("Mark Attendance", disabled=True)
     else:
         if st.button("Mark Attendance"):
             cursor.execute("UPDATE subjects SET attendance = attendance + 1 WHERE name=?",(choice,))
@@ -144,12 +161,8 @@ def subject_folder_page(choice):
             st.rerun()
 
     st.divider()
-    st.subheader("📁 Media Cloud")
-    st.file_uploader(f"Upload to {choice} folder")
-    
-    st.divider()
-    st.subheader("📈 Analytics")
-    st.write(f"Efficiency Score: {efficiency_score(choice)}")
+    st.subheader("📂 Files & Notes")
+    st.file_uploader("Upload materials to this cloud folder")
 
 def global_ai_page():
     st.title("🌍 Global AI Assistant")
@@ -158,61 +171,57 @@ def global_ai_page():
     except:
         hf_token = "NOT_FOUND"
     
-    user_q = st.text_input("Ask Synapse AI a question:")
+    user_q = st.text_input("Ask Synapse AI anything:")
 
     if st.button("Generate"):
         if hf_token == "NOT_FOUND":
-            st.error("Secret Token not found! Check your Streamlit Secrets.")
+            st.error("Missing Token in Secrets!")
         elif not user_q.strip():
-            st.warning("Please enter a question.")
+            st.warning("Enter a question.")
         else:
-            with st.spinner("AI is thinking..."):
+            with st.spinner("Analyzing..."):
                 try:
                     API_URL = "https://router.huggingface.co/v1/chat/completions"
                     headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
                     payload = {
                         "model": "meta-llama/Llama-3.2-3B-Instruct", 
                         "messages": [{"role": "user", "content": user_q}],
-                        "max_tokens": 500,
-                        "stream": False
+                        "max_tokens": 500
                     }
                     response = requests.post(API_URL, headers=headers, json=payload, timeout=25)
                     if response.status_code == 200:
-                        output = response.json()
-                        answer = output['choices'][0]['message']['content']
-                        st.markdown("### 🤖 Synapse AI Says:")
-                        st.write(answer)
+                        st.markdown("### 🤖 Response:")
+                        st.write(response.json()['choices'][0]['message']['content'])
                     else:
-                        st.error(f"AI Error {response.status_code}: {response.text}")
-                except Exception as e:
-                    st.error(f"Connection failed: {e}")
+                        st.error(f"AI Offline ({response.status_code})")
+                except:
+                    st.error("Connection failed.")
 
-# ------------------- New Navigation Logic -------------------
+# ------------------- Navigation Tree -------------------
 
-# 1. Main Pages
+# Search Bar in Sidebar
+with st.sidebar:
+    st.header("🔍 Search Folders")
+    search_query = st.text_input("Filter subjects...", "").lower()
+
+# Filter subjects based on search
+filtered_subs = [s for s in st.session_state.subjects if search_query in s.lower()]
+
+# Main Pages
 pg_dashboard = st.Page(dashboard_page, title="Main Dashboard", icon="📊", default=True)
 pg_ai = st.Page(global_ai_page, title="Global AI Assistant", icon="🌍")
 
-# 2. Dynamic Subject Folder Pages
+# Folder Sub-branches
 subject_pages = []
-for sub in st.session_state.subjects:
-    # This creates a separate clickable page for every subject in your sidebar
-    sp = st.Page(lambda s=sub: subject_folder_page(s), title=sub, icon="📁")
-    subject_pages.append(sp)
+for sub in filtered_subs:
+    subject_pages.append(st.Page(lambda s=sub: subject_folder_page(s), title=sub, icon="📁"))
 
-# 3. Create Navigation Tree
-if not subject_pages:
-    # Placeholder if no subjects exist yet
-    nav_dict = {
-        "Menu": [pg_dashboard, pg_ai],
-        "Subject Explorer": [st.Page(lambda: st.info("Create a subject in the Dashboard to see folders here!"), title="No Folders yet")]
-    }
+# Build Navigation
+nav_dict = {"Main Menu": [pg_dashboard, pg_ai]}
+if subject_pages:
+    nav_dict["Subject Explorer"] = subject_pages
 else:
-    nav_dict = {
-        "Menu": [pg_dashboard, pg_ai],
-        "Subject Explorer": subject_pages
-    }
+    nav_dict["Subject Explorer"] = [st.Page(lambda: st.info("No folders found."), title="Empty", icon="❓")]
 
-# 4. Render Navigation
 pg = st.navigation(nav_dict)
 pg.run()
