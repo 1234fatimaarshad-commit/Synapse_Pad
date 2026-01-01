@@ -181,7 +181,7 @@ elif st.session_state.page == "Global AI":
             with st.spinner("AI is thinking..."):
                 try:
                     # Change the model from v0.2 to v0.3 (more stable)
-                    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
+                    API_URL = "https://api-inference.huggingface.co/models/google/gemma-7b-it"
                     headers = {"Authorization": f"Bearer {hf_token}"}
                     
                     response = requests.post(API_URL, headers=headers, json={"inputs": user_q}, timeout=10)
