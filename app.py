@@ -129,8 +129,7 @@ if st.session_state.page == "Main Dashboard":
         t_diff = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"])
         if st.button("Add Task"):
             add_task(t_name, t_diff, sel_date.strftime("%Y-%m-%d"))
-77777777
-    with col3:
+     with col3:
         st.subheader("📚 Subjects")
         new_sub = st.text_input("New Subject")
         if st.button("Create"):
