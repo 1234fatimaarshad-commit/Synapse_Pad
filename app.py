@@ -160,47 +160,52 @@ elif st.session_state.page == "Subject Explorer":
         st.file_uploader("Upload to Cloud Folder")
         st.write(f"Efficiency Score: {efficiency_score(choice)}")
 elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI Assistant (2026 Update)")
+    st.title("🌍 Global AI Assistant")
     
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
         hf_token = "NOT_FOUND"
     
-    user_q = st.text_input("Ask a question:")
+    user_q = st.text_input("Ask Synapse AI a question:")
 
     if st.button("Generate"):
         if hf_token == "NOT_FOUND":
-            st.error("Missing Token! Add 'HF_TOKEN' to Streamlit Secrets.")
+            st.error("Secret Token not found! Check your Streamlit Secrets.")
         elif not user_q.strip():
-            st.warning("Please type a question.")
+            st.warning("Please enter a question.")
         else:
-            with st.spinner("Connecting via Hugging Face Router..."):
+            with st.spinner("AI is thinking..."):
                 try:
-                    # NEW 2026 ROUTER ENDPOINT (Replaces api-inference)
-                    API_URL = "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3"
+                    # NEW 2026 UNIVERSAL ROUTER URL
+                    API_URL = "https://router.huggingface.co/v1/chat/completions"
                     
                     headers = {
                         "Authorization": f"Bearer {hf_token}",
                         "Content-Type": "application/json"
                     }
                     
+                    # The new format requires a "messages" list
                     payload = {
-                        "inputs": user_q,
-                        "parameters": {"max_new_tokens": 500},
-                        "options": {"wait_for_model": True}
+                        "model": "meta-llama/Llama-3.2-3B-Instruct", 
+                        "messages": [
+                            {"role": "user", "content": user_q}
+                        ],
+                        "max_tokens": 500,
+                        "stream": False
                     }
                     
-                    response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+                    response = requests.post(API_URL, headers=headers, json=payload, timeout=25)
                     
                     if response.status_code == 200:
-                        result = response.json()
-                        # Extract answer
-                        answer = result[0].get('generated_text', 'No response text.') if isinstance(result, list) else result.get('generated_text', str(result))
-                        
-                        st.markdown("### 🤖 Synapse AI:")
-                        st.write(answer.replace(user_q, "").strip()) # Clean output
+                        output = response.json()
+                        # Extract the answer from the new OpenAI-style response format
+                        answer = output['choices'][0]['message']['content']
+                        st.markdown("### 🤖 Synapse AI Says:")
+                        st.write(answer)
+                    elif response.status_code == 404:
+                        st.error("Error 404: Hugging Face has changed the endpoint again. Please notify the developer.")
                     else:
-                        st.error(f"Error {response.status_code}: {response.text}")
+                        st.error(f"AI Error {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Connection failed: {e}")
