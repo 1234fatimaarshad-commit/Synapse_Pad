@@ -163,13 +163,36 @@ elif st.session_state.page == "Subject Explorer":
 elif st.session_state.page == "Global AI":
     st.title("🌍 Global AI Assistant")
     
-    # This line tells the app to pull the token from the "Secrets" area
+    # 1. Securely get the token from Streamlit Secrets
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
         hf_token = "NOT_FOUND"
     
-    user_q = st.text_input("Ask AI:")
+    user_q = st.text_input("Ask Synapse AI a study question:")
+
     if st.button("Generate"):
-        if hf_token != "NOT_FOUND":
-            # (Rest of your API code stays the same)
+        # 2. Check if the token exists
+        if hf_token == "NOT_FOUND":
+            st.error("Secret Token not found! Please add HF_TOKEN to Streamlit Secrets.")
+        elif not user_q.strip():
+            st.warning("Please enter a question first.")
+        else:
+            with st.spinner("AI is thinking..."):
+                try:
+                    # 3. The actual API connection code
+                    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+                    headers = {"Authorization": f"Bearer {hf_token}"}
+                    
+                    response = requests.post(API_URL, headers=headers, json={"inputs": user_q}, timeout=10)
+                    
+                    if response.status_code == 200:
+                        output = response.json()
+                        # Clean up the response text
+                        ai_text = output[0]['generated_text']
+                        st.markdown("### AI Response:")
+                        st.write(ai_text)
+                    else:
+                        st.error(f"AI Error: Received status code {response.status_code}")
+                except Exception as e:
+                    st.error(f"Connection failed: {e}")
