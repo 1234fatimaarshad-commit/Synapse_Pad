@@ -160,9 +160,8 @@ elif st.session_state.page == "Subject Explorer":
         st.file_uploader("Upload to Cloud Folder")
         st.write(f"Efficiency Score: {efficiency_score(choice)}")
 elif st.session_state.page == "Global AI":
-    st.title("🌍 Global AI Assistant")
+    st.title("🌍 Global AI Assistant (2026 Update)")
     
-    # Try to get token
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
@@ -172,24 +171,36 @@ elif st.session_state.page == "Global AI":
 
     if st.button("Generate"):
         if hf_token == "NOT_FOUND":
-            st.error("Go to Streamlit Settings and add HF_TOKEN!")
+            st.error("Missing Token! Add 'HF_TOKEN' to Streamlit Secrets.")
+        elif not user_q.strip():
+            st.warning("Please type a question.")
         else:
-            # THE SIMPLEST API CALL POSSIBLE
-            API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
-            headers = {"Authorization": f"Bearer {hf_token}"}
-            
-            with st.spinner("Talking to AI..."):
-                response = requests.post(API_URL, headers=headers, json={"inputs": user_q})
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    # Just show the text directly
-                    answer = result[0]['generated_text'] if isinstance(result, list) else str(result)
-                    st.success("Response Received:")
-                    st.write(answer)
-                elif response.status_code == 410:
-                    st.error("Error 410: The model is being updated. This is a Hugging Face server issue.")
-                elif response.status_code == 403:
-                    st.error("Error 403: Your Token is wrong or doesn't have permissions.")
-                else:
-                    st.error(f"Error {response.status_code}. Try again in 10 seconds.")
+            with st.spinner("Connecting via Hugging Face Router..."):
+                try:
+                    # NEW 2026 ROUTER ENDPOINT (Replaces api-inference)
+                    API_URL = "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3"
+                    
+                    headers = {
+                        "Authorization": f"Bearer {hf_token}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    payload = {
+                        "inputs": user_q,
+                        "parameters": {"max_new_tokens": 500},
+                        "options": {"wait_for_model": True}
+                    }
+                    
+                    response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        # Extract answer
+                        answer = result[0].get('generated_text', 'No response text.') if isinstance(result, list) else result.get('generated_text', str(result))
+                        
+                        st.markdown("### 🤖 Synapse AI:")
+                        st.write(answer.replace(user_q, "").strip()) # Clean output
+                    else:
+                        st.error(f"Error {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Connection failed: {e}")
