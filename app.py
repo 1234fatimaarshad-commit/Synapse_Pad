@@ -162,48 +162,34 @@ elif st.session_state.page == "Subject Explorer":
 elif st.session_state.page == "Global AI":
     st.title("🌍 Global AI Assistant")
     
+    # Try to get token
     try:
         hf_token = st.secrets["HF_TOKEN"]
     except:
         hf_token = "NOT_FOUND"
     
-    user_q = st.text_input("Ask Synapse AI anything:")
+    user_q = st.text_input("Ask a question:")
 
     if st.button("Generate"):
         if hf_token == "NOT_FOUND":
-            st.error("Secret Token not found in Streamlit Settings!")
-        elif not user_q.strip():
-            st.warning("Please type a question.")
+            st.error("Go to Streamlit Settings and add HF_TOKEN!")
         else:
-            with st.spinner("AI is thinking..."):
-                try:
-                    # GOOGLE GEMMA: The most reliable model for free APIs
-                    API_URL = "https://api-inference.huggingface.co/models/google/gemma-1.1-7b-it"
-                    headers = {"Authorization": f"Bearer {hf_token}"}
-                    
-                    # Simplified request
-                    response = requests.post(API_URL, headers=headers, json={"inputs": user_q}, timeout=20)
-                    
-                    if response.status_code == 200:
-                        output = response.json()
-                        
-                        # Extract text
-                        if isinstance(output, list) and len(output) > 0:
-                            ai_text = output[0].get('generated_text', 'No response text.')
-                        else:
-                            ai_text = str(output)
-                        
-                        # Remove the user's question from the start of the answer if it appears
-                        clean_answer = ai_text.replace(user_q, "").strip()
-                        
-                        st.markdown("### 🤖 Response:")
-                        st.write(clean_answer if clean_answer else ai_text)
-                        
-                    elif response.status_code == 503:
-                        st.info("The AI is loading. Please wait 10 seconds and click Generate again!")
-                    elif response.status_code == 401:
-                        st.error("Error 401: Your Token is invalid. Check your Streamlit Secrets!")
-                    else:
-                        st.error(f"Error {response.status_code}: Try a simpler question.")
-                except Exception as e:
-                    st.error(f"Connection Error: {e}")
+            # THE SIMPLEST API CALL POSSIBLE
+            API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
+            headers = {"Authorization": f"Bearer {hf_token}"}
+            
+            with st.spinner("Talking to AI..."):
+                response = requests.post(API_URL, headers=headers, json={"inputs": user_q})
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    # Just show the text directly
+                    answer = result[0]['generated_text'] if isinstance(result, list) else str(result)
+                    st.success("Response Received:")
+                    st.write(answer)
+                elif response.status_code == 410:
+                    st.error("Error 410: The model is being updated. This is a Hugging Face server issue.")
+                elif response.status_code == 403:
+                    st.error("Error 403: Your Token is wrong or doesn't have permissions.")
+                else:
+                    st.error(f"Error {response.status_code}. Try again in 10 seconds.")
