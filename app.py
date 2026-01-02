@@ -3,14 +3,22 @@ import sqlite3
 import requests
 from datetime import datetime, date
 
-# v8.0 - SYNAPSE AI VERSION
+# v11.0 - 100% LOGIC ATTENDANCE SYSTEM
 st.set_page_config(page_title="Synapse Pad", layout="wide")
 
 # ------------------- SQLite Setup -------------------
 conn = sqlite3.connect("synapse_pad.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name TEXT PRIMARY KEY, attendance INTEGER DEFAULT 0)")
-cursor.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, minutes INTEGER, item_date TEXT)")
+cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name TEXT PRIMARY KEY)")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    name TEXT, 
+    type TEXT, 
+    minutes INTEGER, 
+    item_date TEXT,
+    attended INTEGER DEFAULT 0
+)""")
 conn.commit()
 
 # ------------------- Session State -------------------
@@ -24,10 +32,8 @@ if "subjects" not in st.session_state:
 # ------------------- Sidebar -------------------
 with st.sidebar:
     st.title("🚀 Synapse Pad")
-    st.write("System Status: **Active**")
     search_query = st.text_input("🔍 Search Folders", "").lower()
     st.divider()
-    # RENAMED: Global AI -> Synapse AI
     page = st.radio("Navigate", ["📊 Dashboard", "🤖 Synapse AI", "📂 Subject Explorer"])
     filtered_subs = [s for s in st.session_state.subjects if search_query in s.lower()]
 
@@ -40,91 +46,116 @@ if page == "📊 Dashboard":
         st.subheader("🗓️ Daily Planner")
         sel_date = st.date_input("Select Date", date.today()).strftime("%Y-%m-%d")
         
-        # 16 HOUR LOGIC (960 Minutes)
         cursor.execute("SELECT SUM(minutes) FROM items WHERE item_date=?", (sel_date,))
-        res = cursor.fetchone()
-        mins_used = res[0] if res[0] else 0
-        progress = min(mins_used / 960, 1.0)
-        
+        mins_used = cursor.fetchone()[0] or 0
         st.write(f"**AI Capacity:** {mins_used} / 960 mins")
-        st.progress(progress)
+        st.progress(min(mins_used / 960, 1.0))
         
         st.divider()
-        st.subheader("📝 To-Do List")
-        item_name = st.text_input("Name (Lecture/Task)")
-        duration = st.number_input("Minutes", min_value=15, step=15, value=60)
-        item_type = st.selectbox("Type", ["Task", "Lecture"])
-        
-        if st.button("Add to Schedule"):
-            if item_name.strip():
-                if (mins_used + duration) > 960:
-                    st.error("⚠️ AI Alert: Capacity Exceeded!")
-                else:
-                    cursor.execute("INSERT INTO items(name, type, minutes, item_date) VALUES (?,?,?,?)", (item_name, item_type, duration, sel_date))
+        st.subheader("🏫 Classes")
+        if not st.session_state.subjects:
+            st.info("Create a subject folder first.")
+        else:
+            class_sub = st.selectbox("Select Subject", st.session_state.subjects)
+            class_mins = st.number_input("Duration (Mins)", min_value=15, step=15, value=60)
+            if st.button("Schedule Class"):
+                if (mins_used + class_mins) <= 960:
+                    cursor.execute("INSERT INTO items(name, type, minutes, item_date, attended) VALUES (?,?,?,?,0)", 
+                                   (class_sub, "Class", class_mins, sel_date))
                     conn.commit()
                     st.rerun()
+                else:
+                    st.error("Capacity Exceeded!")
+
+        st.divider()
+        st.subheader("📝 To-Do List")
+        task_name = st.text_input("Task Name")
+        task_mins = st.number_input("Task Mins", min_value=15, step=15, value=30)
+        if st.button("Add Task"):
+            if (mins_used + task_mins) <= 960 and task_name.strip():
+                cursor.execute("INSERT INTO items(name, type, minutes, item_date, attended) VALUES (?,?,?,?,0)", 
+                               (task_name, "Task", task_mins, sel_date))
+                conn.commit()
+                st.rerun()
+
+        st.divider()
+        st.subheader("📁 New Folder")
+        new_sub = st.text_input("Folder Name")
+        if st.button("Create"):
+            if new_sub.strip():
+                cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)", (new_sub,))
+                conn.commit()
+                if new_sub not in st.session_state.subjects: st.session_state.subjects.append(new_sub)
+                st.rerun()
 
     with col2:
         st.subheader(f"📋 Timeline: {sel_date}")
-        cursor.execute("SELECT id, name, type, minutes FROM items WHERE item_date=?", (sel_date,))
-        for i_id, i_name, i_type, i_mins in cursor.fetchall():
-            icon = "🧠" if i_type == "Task" else "🏫"
-            c1, c2 = st.columns([5, 1])
+        cursor.execute("SELECT id, name, type, minutes, attended FROM items WHERE item_date=?", (sel_date,))
+        items = cursor.fetchall()
+        
+        for i_id, i_name, i_type, i_mins, i_attended in items:
+            c1, c2, c3 = st.columns([4, 1, 1])
+            icon = "🏫" if i_type == "Class" else "🧠"
             c1.info(f"{icon} **{i_name}** ({i_mins}m)")
-            if c2.button("🗑️", key=f"del_{i_id}"):
+            
+            if i_type == "Class":
+                is_checked = c2.checkbox("Attended", value=bool(i_attended), key=f"att_{i_id}")
+                if is_checked != bool(i_attended):
+                    cursor.execute("UPDATE items SET attended=? WHERE id=?", (int(is_checked), i_id))
+                    conn.commit()
+                    st.rerun()
+            
+            if c3.button("🗑️", key=f"del_{i_id}"):
                 cursor.execute("DELETE FROM items WHERE id=?", (i_id,))
                 conn.commit()
                 st.rerun()
 
-# ------------------- Synapse AI (Formerly Global AI) -------------------
+# ------------------- Synapse AI -------------------
 elif page == "🤖 Synapse AI":
-    st.title("🤖 Synapse AI Assistant")
-    st.write("Ask your personalized study assistant anything.")
-    
+    st.title("🤖 Synapse AI")
     user_q = st.text_input("Message Synapse AI:")
     if st.button("Generate"):
-        if not user_q:
-            st.warning("Please type a message first.")
-        else:
-            try:
-                hf_token = st.secrets["HF_TOKEN"]
-                # Using the stable 2026 router endpoint
-                API_URL = "https://router.huggingface.co/v1/chat/completions"
-                headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
-                payload = {
-                    "model": "meta-llama/Llama-3.2-3B-Instruct", 
-                    "messages": [{"role": "user", "content": user_q}]
-                }
-                with st.spinner("Synapse is thinking..."):
-                    res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
-                    if res.status_code == 200:
-                        st.markdown(f"### 🤖 Synapse Response:\n{res.json()['choices'][0]['message']['content']}")
-                    else:
-                        st.error("Synapse AI is currently overloaded. Please try again.")
-            except:
-                st.error("Connection Error: Ensure your HF_TOKEN is correctly set in Streamlit Secrets.")
+        try:
+            hf_token = st.secrets["HF_TOKEN"]
+            API_URL = "https://router.huggingface.co/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
+            payload = {"model": "meta-llama/Llama-3.2-3B-Instruct", "messages": [{"role": "user", "content": user_q}]}
+            res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
+            st.markdown(res.json()['choices'][0]['message']['content'])
+        except:
+            st.error("Check Secrets!")
 
 # ------------------- Subject Explorer -------------------
 elif page == "📂 Subject Explorer":
     st.title("📂 Subject Explorer")
     if not filtered_subs:
-        st.info("No folders found. Create one in the Dashboard!")
+        st.info("No folders found.")
     else:
         choice = st.selectbox("Open Folder:", filtered_subs)
         st.header(f"📁 Folder: {choice}")
         
+        # --- THE 100% ATTENDANCE LOGIC ---
+        cursor.execute("SELECT COUNT(*) FROM items WHERE name=? AND type='Class'", (choice,))
+        total_classes = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM items WHERE name=? AND type='Class' AND attended=1", (choice,))
+        attended_classes = cursor.fetchone()[0]
+        
+        # Calculation: Default to 100 if no classes exist
+        if total_classes == 0:
+            final_percentage = 100
+        else:
+            final_percentage = round((attended_classes / total_classes) * 100, 1)
+        
+        st.metric("Attendance Rate", f"{final_percentage}%", delta=f"{attended_classes}/{total_classes} Classes")
+        
+        if final_percentage < 75:
+            st.warning("⚠️ Low Attendance! You need to attend more classes to stay above 75%.")
+        
+        st.divider()
         if st.button("🗑️ Delete Folder"):
             cursor.execute("DELETE FROM subjects WHERE name=?", (choice,))
+            cursor.execute("DELETE FROM items WHERE name=?", (choice,)) # Delete associated items
             conn.commit()
             st.session_state.subjects.remove(choice)
-            st.rerun()
-            
-        st.divider()
-        cursor.execute("SELECT attendance FROM subjects WHERE name=?", (choice,))
-        res = cursor.fetchone()
-        att = res[0] if res else 0
-        st.metric("Total Attendance", att)
-        if st.button("Mark Attendance"):
-            cursor.execute("UPDATE subjects SET attendance = attendance + 1 WHERE name=?", (choice,))
-            conn.commit()
             st.rerun()
