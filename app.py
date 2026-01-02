@@ -46,13 +46,13 @@ def ask_synapse(prompt):
         headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3.2-3B-Instruct", 
-            "messages": [{"role": "system", "content": "You are Synapse Pro AI. Use the provided text to generate study aids."},
+            "messages": [{"role": "system", "content": "You are Synapse Pro AI. You analyze provided student notes and document metadata to create study aids."},
                          {"role": "user", "content": prompt}]
         }
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         return res.json()['choices'][0]['message']['content']
     except:
-        return "SYSTEM NOTIFICATION: AI connection failed. Ensure HF_TOKEN is in Secrets."
+        return "SYSTEM NOTIFICATION: AI connection failed. Check HF_TOKEN in Secrets."
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
@@ -126,7 +126,7 @@ if page == "DASHBOARD":
                     cursor.execute("DELETE FROM items WHERE id=?", (i_id,))
                     conn.commit(); st.rerun()
 
-# --- 6. SYNAPSE AI (GENERAL CHAT) ---
+# --- 6. SYNAPSE AI ---
 elif page == "SYNAPSE AI":
     st.title("Synapse AI Core")
     u_q = st.chat_input("Ask a general academic question...")
@@ -134,7 +134,7 @@ elif page == "SYNAPSE AI":
         with st.chat_message("user"): st.write(u_q)
         with st.chat_message("assistant"): st.write(ask_synapse(u_q))
 
-# --- 7. SUBJECT EXPLORER (STUDY TOOLS FIXED) ---
+# --- 7. SUBJECT EXPLORER (COMPLETE ANALYSIS ENABLED) ---
 elif page == "SUBJECT EXPLORER":
     st.title("Subject Archives")
     display_list = filtered_subs if search_query else subjects_list
@@ -150,25 +150,43 @@ elif page == "SUBJECT EXPLORER":
         tab1, tab2, tab3 = st.tabs(["MATERIALS", "AI STUDY TOOLS", "FOCUS TIMER"])
         
         with tab1:
-            st.write(f"Manage documents and notes for **{choice}**")
-            st.file_uploader("UPLOAD DATA", key=f"u_{choice}")
-            # Notes are saved in session state so AI can see them
-            notes = st.text_area("SESSION NOTES (Type here for AI to analyze)", height=300, key=f"notes_{choice}")
+            st.write(f"Upload media and log notes for **{choice}**")
+            # Document Context
+            uploaded_file = st.file_uploader("UPLOAD DOCUMENTS (PDF/TXT)", key=f"u_{choice}")
+            # Note Context
+            notes = st.text_area("SESSION NOTES", height=300, key=f"notes_{choice}")
             if notes:
                 st.download_button("DOWNLOAD NOTES (.TXT)", notes, f"{choice}_notes.txt")
 
         with tab2:
-            st.subheader("AI Generation Engine")
-            if not st.session_state.get(f"notes_{choice}"):
-                st.warning("⚠️ No notes detected. Go to the 'MATERIALS' tab and type some notes first so the AI has something to analyze!")
+            st.subheader("Complete Analysis Engine")
+            
+            # Checking if data exists
+            has_notes = st.session_state.get(f"notes_{choice}")
+            has_file = uploaded_file is not None
+            
+            if not has_notes and not has_file:
+                st.warning("⚠️ No data found. Please upload a document or type notes in the 'MATERIALS' tab first.")
             else:
                 tool = st.radio("SELECT PROTOCOL", ["Summary", "Quiz", "Flashcards"], horizontal=True)
-                if st.button("RUN AI GENERATOR"):
-                    user_notes = st.session_state[f"notes_{choice}"]
-                    prompt = f"Based on these notes for {choice}: '{user_notes}', please generate a {tool}."
-                    with st.spinner("AI is analyzing your notes..."):
-                        result = ask_synapse(prompt)
-                        st.markdown("### Generated Output")
+                
+                if st.button("RUN COMPLETE ANALYSIS"):
+                    # Building the Contextual Prompt
+                    file_info = f"Document: {uploaded_file.name}" if has_file else "No document uploaded"
+                    note_info = f"Student Notes: {has_notes}" if has_notes else "No notes typed"
+                    
+                    full_prompt = f"""
+                    Analyze all available media for the subject {choice}.
+                    Context:
+                    - {file_info}
+                    - {note_info}
+                    
+                    Task: Generate a professional {tool} based on this combined knowledge.
+                    """
+                    
+                    with st.spinner("Analyzing all subject media..."):
+                        result = ask_synapse(full_prompt)
+                        st.markdown("### Generated Result")
                         st.write(result)
 
         with tab3:
