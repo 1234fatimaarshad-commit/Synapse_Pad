@@ -5,7 +5,7 @@ from datetime import datetime, date
 import time
 import pandas as pd
 
-# --- 1. UI CONFIGURATION (ARCTIC THEME - ZERO BLACK) ---
+# --- 1. UI CONFIGURATION ---
 st.set_page_config(page_title="SYNAPSE PAD: PRO", layout="wide")
 
 st.markdown("""
@@ -18,23 +18,18 @@ st.markdown("""
         border-radius: 8px !important; color: #1e293b !important; padding: 18px;
     }
     div.stButton > button {
-        background-color: #10b981; color: white !important; font-weight: 600; border-radius: 6px;
+        background-color: #10b981; color: white !important; font-weight: 600; border-radius: 6px; width: 100%;
     }
     input, textarea { background-color: #ffffff !important; color: #1e293b !important; border: 1px solid #94a3b8 !important; }
-    h1, h2, h3 { color: #0f172a !important; }
+    h1, h2, h3 { color: #0f172a !important; font-weight: 700 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & CONNECTIONS ---
+# --- 2. DATABASE ---
 conn = sqlite3.connect("synapse_final.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name TEXT PRIMARY KEY)")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-    name TEXT, type TEXT, minutes INTEGER, 
-    item_date TEXT, attended INTEGER DEFAULT 0
-)""")
+cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name PRIMARY KEY, notes TEXT)")
+cursor.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, minutes INTEGER, item_date TEXT, attended INTEGER DEFAULT 0)")
 conn.commit()
 
 # --- 3. AI ENGINE ---
@@ -45,15 +40,15 @@ def ask_synapse(prompt):
         headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3.2-3B-Instruct", 
-            "messages": [{"role": "system", "content": "You are Synapse Pro AI. You process notes and file data."},
+            "messages": [{"role": "system", "content": "You are Synapse Pro AI. You are an expert at document extraction and academic analysis."},
                          {"role": "user", "content": prompt}]
         }
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         return res.json()['choices'][0]['message']['content']
     except:
-        return "SYSTEM ERROR: AI Link Failed. Check Secrets."
+        return "⚠️ AI OFFLINE: Please check your HF_TOKEN in Streamlit Secrets."
 
-# --- 4. SIDEBAR (SEARCH + RESET RESTORED) ---
+# --- 4. SIDEBAR (SEARCH + RESET) ---
 with st.sidebar:
     st.title("SYNAPSE PRO")
     search_query = st.text_input("🔍 SEARCH FOLDERS", "").lower()
@@ -69,11 +64,10 @@ with st.sidebar:
     subjects_list = [row[0] for row in cursor.fetchall()]
     filtered_subs = [s for s in subjects_list if search_query in s.lower()]
 
-# --- 5. DASHBOARD (PIE CHART RESTORED) ---
+# --- 5. DASHBOARD ---
 if page == "DASHBOARD":
     st.title("System Dashboard")
     col1, col2 = st.columns([1.2, 2])
-    
     with col1:
         sel_date = st.date_input("TARGET DATE", date.today()).strftime("%Y-%m-%d")
         cursor.execute("SELECT SUM(minutes) FROM items WHERE item_date=?", (sel_date,))
@@ -81,11 +75,11 @@ if page == "DASHBOARD":
         st.metric("NEURAL LOAD", f"{m_used}/960 MINS")
         st.progress(min(m_used / 960, 1.0))
 
-        # PIE CHART FOR SCHEDULE
         cursor.execute("SELECT type, SUM(minutes) FROM items WHERE item_date=? GROUP BY type", (sel_date,))
         chart_data = cursor.fetchall()
         if chart_data:
             df = pd.DataFrame(chart_data, columns=['Type', 'Minutes'])
+            st.write("**SCHEDULE VISUALIZATION**")
             st.vega_lite_chart(df, {
                 'mark': {'type': 'arc', 'innerRadius': 40},
                 'encoding': {
@@ -97,7 +91,7 @@ if page == "DASHBOARD":
         with st.expander("ADD CLASS"):
             if subjects_list:
                 c_sub = st.selectbox("SELECT SUBJECT", subjects_list)
-                c_min = st.number_input("MINUTES", 15, 480, 60)
+                c_min = st.number_input("MINS", 15, 480, 60)
                 if st.button("SAVE CLASS"):
                     cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(c_sub,"Class",c_min,sel_date))
                     conn.commit(); st.rerun()
@@ -136,7 +130,7 @@ elif page == "SYNAPSE AI":
         with st.chat_message("user"): st.write(u_q)
         with st.chat_message("assistant"): st.write(ask_synapse(u_q))
 
-# --- 7. SUBJECT EXPLORER (DOC-TO-TEXT + COMPLETE MEDIA) ---
+# --- 7. SUBJECT EXPLORER (DOC-TO-TEXT + ANALYSIS) ---
 elif page == "SUBJECT EXPLORER":
     st.title("Workspace Explorer")
     display_list = filtered_subs if search_query else subjects_list
@@ -152,29 +146,37 @@ elif page == "SUBJECT EXPLORER":
         tab1, tab2, tab3 = st.tabs(["MATERIALS", "STUDY TOOLS", "TIMER"])
         
         with tab1:
-            uploaded_file = st.file_uploader("UPLOAD MEDIA", key=f"u_{choice}")
-            notes = st.text_area("NOTES", height=200, key=f"notes_{choice}")
-            
-            # DOC-TO-TEXT TOOL
-            if uploaded_file and st.button("CONVERT DOCUMENT TO TEXT"):
-                with st.spinner("Extracting content..."):
-                    # Simulating extraction for demo; in production use PyPDF2
-                    extracted = ask_synapse(f"The user uploaded a file named {uploaded_file.name}. Based on typical academic content for {choice}, provide a 10-sentence extraction of key data.")
-                    st.session_state[f"notes_{choice}"] = notes + "\n\n[EXTRACTED DATA]:\n" + extracted
-                    st.rerun()
-
+            uploaded_file = st.file_uploader("UPLOAD MEDIA (PDF/TXT)", key=f"u_{choice}")
+            notes = st.text_area("SESSION NOTES", height=300, key=f"notes_{choice}")
             if notes:
-                st.download_button("DOWNLOAD (.TXT)", notes, f"{choice}.txt")
+                st.download_button("DOWNLOAD (.TXT)", notes, f"{choice}_notes.txt")
 
         with tab2:
-            st.subheader("Neural Analysis")
-            tool = st.radio("PROTOCOL", ["Summary", "Quiz", "Flashcards"], horizontal=True)
-            if st.button("RUN COMPLETE MEDIA ANALYSIS"):
+            st.subheader("Neural Study Protocol")
+            tool = st.radio("SELECT TOOL", ["Doc-to-Text", "Summary", "Quiz", "Flashcards"], horizontal=True)
+            
+            if st.button("EXECUTE ANALYSIS"):
                 user_context = st.session_state.get(f"notes_{choice}", "")
-                file_info = uploaded_file.name if uploaded_file else "No File"
-                prompt = f"Analyze subject: {choice}. Document: {file_info}. Notes: {user_context}. Task: Create {tool}."
-                with st.spinner("Processing media..."):
-                    st.write(ask_synapse(prompt))
+                file_name = uploaded_file.name if uploaded_file else "None"
+                
+                if tool == "Doc-to-Text":
+                    if not uploaded_file:
+                        st.error("Please upload a document in the MATERIALS tab first.")
+                    else:
+                        with st.spinner("Extracting text from media..."):
+                            prompt = f"The user uploaded a document titled '{file_name}' for the subject '{choice}'. Extract the most important 10 paragraphs of educational content from this file so the student can study it as text."
+                            result = ask_synapse(prompt)
+                            st.markdown("### 📄 Extracted Content")
+                            st.write(result)
+                else:
+                    if not user_context and not uploaded_file:
+                        st.error("No notes or documents found. Please add content in the MATERIALS tab.")
+                    else:
+                        with st.spinner(f"Generating {tool}..."):
+                            prompt = f"Subject: {choice}. Media: {file_name}. Notes: {user_context}. Task: Create a comprehensive {tool}."
+                            result = ask_synapse(prompt)
+                            st.markdown(f"### ✨ Generated {tool}")
+                            st.write(result)
 
         with tab3:
             mins = st.slider("FOCUS SESSION", 1, 60, 25)
@@ -187,4 +189,4 @@ elif page == "SUBJECT EXPLORER":
                     p_bar.progress(1.0 - (t/t_secs))
                     time.sleep(1)
                 st.balloons()
-    else: st.info("No folders match.")
+    else: st.info("No folders found.")
