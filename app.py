@@ -5,60 +5,69 @@ from datetime import datetime, date
 import time
 import pandas as pd
 
-# --- 1. UI CONFIGURATION (LIGHT THEME - ZERO BLACK) ---
+# --- 1. UI CONFIGURATION (ARCTIC THEME - NO BLACK - NO BROKEN EMOJIS) ---
 st.set_page_config(page_title="SYNAPSE PAD: PRO", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. Light Arctic Background */
+    /* Arctic Base */
     .stApp {
-        background-color: #f4f7f9;
-        color: #1a2a3a;
+        background-color: #f8fafc;
+        color: #1e293b;
+        font-family: 'Inter', -apple-system, sans-serif;
     }
     
-    /* 2. Sidebar - Navy Blue */
+    /* Navy Sidebar */
     section[data-testid="stSidebar"] {
-        background-color: #1a2a3a !important;
-        border-right: 1px solid #d1d9e0;
+        background-color: #0f172a !important;
+        border-right: 1px solid #e2e8f0;
     }
     section[data-testid="stSidebar"] * {
-        color: white !important;
+        color: #f8fafc !important;
     }
 
-    /* 3. Containers - High Visibility White */
+    /* Clean White Cards */
     .stMetric, div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"], [data-testid="stChatMessage"] {
         background: #ffffff !important;
-        border: 1px solid #d1d9e0 !important;
-        border-radius: 12px !important;
-        color: #1a2a3a !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        padding: 15px;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        color: #1e293b !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 18px;
     }
 
-    /* 4. Text Visibility Fixes */
-    p, li, label, .stMetric div {
-        color: #1a2a3a !important;
+    /* Text Clarity */
+    p, li, label, span, div {
+        color: #1e293b !important;
     }
 
-    /* 5. Professional Blue Buttons */
+    /* Emerald Green Professional Buttons */
     div.stButton > button {
-        background-color: #2e7d32;
+        background-color: #10b981;
         color: white !important;
         border: none;
-        font-weight: bold;
-        border-radius: 8px;
-        height: 3em;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: 0.2s;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     div.stButton > button:hover {
-        background-color: #1b5e20 !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        background-color: #059669 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
 
-    /* 6. Inputs - Clear and Defined */
+    /* Inputs */
     input, textarea {
         background-color: #ffffff !important;
-        color: #1a2a3a !important;
-        border: 1px solid #cbd5e0 !important;
+        color: #1e293b !important;
+        border: 1px solid #94a3b8 !important;
+    }
+
+    /* Titles */
+    h1, h2, h3 {
+        color: #0f172a !important;
+        font-weight: 700 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -89,39 +98,36 @@ def ask_synapse(prompt):
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         return res.json()['choices'][0]['message']['content']
     except:
-        return "⚠️ CONNECTION ERROR: Check HF_TOKEN."
+        return "SYSTEM NOTIFICATION: AI connection timed out. Check HF_TOKEN."
 
-# --- 4. SIDEBAR (RESTORED SEARCH BAR) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
-    st.title("🛡️ SYNAPSE PRO")
-    
-    # RESTORED SEARCH BAR
-    search_query = st.text_input("🔍 Search Folders", "").lower()
+    st.title("SYNAPSE PRO")
+    search_query = st.text_input("SEARCH FOLDERS", "").lower()
     
     st.divider()
-    page = st.radio("Navigate", ["📊 Dashboard", "🤖 Synapse AI", "📂 Subject Explorer"])
+    page = st.radio("NAVIGATION", ["DASHBOARD", "SYNAPSE AI", "SUBJECT EXPLORER"])
     
     st.divider()
-    with st.expander("🛠️ SYSTEM SETTINGS"):
-        if st.button("🚨 EMERGENCY DATA RESET"):
+    with st.expander("SYSTEM SETTINGS"):
+        if st.button("RESET ALL DATA"):
             cursor.execute("DELETE FROM items"); cursor.execute("DELETE FROM subjects")
             conn.commit(); st.rerun()
     
     cursor.execute("SELECT name FROM subjects")
     subjects_list = [row[0] for row in cursor.fetchall()]
-    # Filter subjects based on search
     filtered_subs = [s for s in subjects_list if search_query in s.lower()]
 
 # --- 5. DASHBOARD ---
-if page == "📊 Dashboard":
-    st.title("📊 Main Dashboard")
+if page == "DASHBOARD":
+    st.title("System Dashboard")
     col1, col2 = st.columns([1.2, 2])
     
     with col1:
-        sel_date = st.date_input("Target Date", date.today()).strftime("%Y-%m-%d")
+        sel_date = st.date_input("TARGET DATE", date.today()).strftime("%Y-%m-%d")
         cursor.execute("SELECT SUM(minutes) FROM items WHERE item_date=?", (sel_date,))
         m_used = cursor.fetchone()[0] or 0
-        st.metric("Total Load", f"{m_used}/960 mins")
+        st.metric("NEURAL CAPACITY", f"{m_used}/960 MINS")
         st.progress(min(m_used / 960, 1.0))
 
         # PIE CHART
@@ -129,99 +135,98 @@ if page == "📊 Dashboard":
         chart_data = cursor.fetchall()
         if chart_data:
             df = pd.DataFrame(chart_data, columns=['Type', 'Minutes'])
-            st.write("**Activity Breakdown**")
+            st.write("**TIME DISTRIBUTION**")
             st.vega_lite_chart(df, {
-                'mark': {'type': 'arc', 'innerRadius': 40},
+                'mark': {'type': 'arc', 'innerRadius': 45},
                 'encoding': {
                     'theta': {'field': 'Minutes', 'type': 'quantitative'},
-                    'color': {'field': 'Type', 'type': 'nominal', 'scale': {'range': ['#2e7d32', '#1a2a3a']}},
+                    'color': {'field': 'Type', 'type': 'nominal', 'scale': {'range': ['#10b981', '#0f172a']}},
                 }
             }, use_container_width=True)
         
-        with st.expander("🏫 Schedule Class"):
+        with st.expander("SCHEDULE CLASS"):
             if subjects_list:
-                c_sub = st.selectbox("Select Subject", subjects_list)
-                c_min = st.number_input("Minutes", 15, 480, 60)
-                if st.button("Add to Schedule"):
+                c_sub = st.selectbox("SELECT SUBJECT", subjects_list)
+                c_min = st.number_input("MINUTES", 15, 480, 60)
+                if st.button("ADD CLASS"):
                     cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(c_sub,"Class",c_min,sel_date))
                     conn.commit(); st.rerun()
 
-        with st.expander("📝 Add Task"):
-            t_name = st.text_input("Task Description")
-            t_min = st.number_input("Task Minutes", 15, 300, 30)
-            if st.button("Log Task"):
+        with st.expander("LOG NEW TASK"):
+            t_name = st.text_input("TASK DESCRIPTION")
+            t_min = st.number_input("TASK MINUTES", 15, 300, 30)
+            if st.button("SAVE TASK"):
                 if t_name:
                     cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(t_name,"Task",t_min,sel_date))
                     conn.commit(); st.rerun()
 
         st.divider()
-        new_s = st.text_input("New Folder Name")
-        if st.button("Create Subject Folder"):
+        new_s = st.text_input("NEW FOLDER NAME")
+        if st.button("CREATE SUBJECT"):
             if new_s:
                 cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)", (new_s,))
                 conn.commit(); st.rerun()
 
     with col2:
-        st.subheader(f"Timeline: {sel_date}")
+        st.subheader(f"DAILY TIMELINE: {sel_date}")
         cursor.execute("SELECT id, name, type, minutes, attended FROM items WHERE item_date=?", (sel_date,))
         for i_id, i_name, i_type, i_mins, i_att in cursor.fetchall():
             with st.container():
                 c1, c2, c3 = st.columns([4, 1, 1])
-                icon = "🏫" if i_type == "Class" else "🧠"
-                c1.write(f"{icon} **{i_name}** ({i_mins}m)")
+                prefix = "[CLASS]" if i_type == "Class" else "[TASK]"
+                c1.write(f"**{prefix} {i_name}** ({i_mins}m)")
                 if i_type == "Class":
-                    if c2.checkbox("Done", value=bool(i_att), key=f"c_{i_id}"):
+                    if c2.checkbox("DONE", value=bool(i_att), key=f"c_{i_id}"):
                         cursor.execute("UPDATE items SET attended=1 WHERE id=?", (i_id,))
                         conn.commit(); st.rerun()
-                if c3.button("🗑️", key=f"d_{i_id}"):
+                if c3.button("DELETE", key=f"d_{i_id}"):
                     cursor.execute("DELETE FROM items WHERE id=?", (i_id,))
                     conn.commit(); st.rerun()
 
 # --- 6. SYNAPSE AI ---
-elif page == "🤖 Synapse AI":
-    st.title("🤖 AI Assistant")
-    u_q = st.chat_input("Ask a question...")
+elif page == "SYNAPSE AI":
+    st.title("Synapse AI Core")
+    u_q = st.chat_input("Enter command...")
     if u_q:
         with st.chat_message("user"): st.write(u_q)
         with st.chat_message("assistant"):
             st.write(ask_synapse(u_q))
 
 # --- 7. SUBJECT EXPLORER ---
-elif page == "📂 Subject Explorer":
-    st.title("📂 Workspace Explorer")
-    # Use filtered list from sidebar search
+elif page == "SUBJECT EXPLORER":
+    st.title("Subject Archives")
     display_list = filtered_subs if search_query else subjects_list
     
     if display_list:
-        choice = st.selectbox("Choose Folder", display_list)
+        choice = st.selectbox("ACTIVE WORKSPACE", display_list)
         cursor.execute("SELECT COUNT(*), SUM(attended) FROM items WHERE name=? AND type='Class'", (choice,))
         total, res_att = cursor.fetchone()
         att = res_att or 0
         score = 100 if total == 0 else round((att/total)*100, 1)
-        st.metric("Attendance Score", f"{score}%")
+        st.metric("ATTENDANCE RATE", f"{score}%")
         
-        tab1, tab2, tab3 = st.tabs(["📚 Materials", "🧠 AI Study Tools", "⏱️ Focus Timer"])
+        tab1, tab2, tab3 = st.tabs(["MATERIALS", "AI STUDY TOOLS", "FOCUS TIMER"])
         with tab1:
-            st.file_uploader("Upload Docs", key=f"u_{choice}")
-            notes = st.text_area("Subject Notes", key=f"n_{choice}")
+            st.file_uploader("UPLOAD DATA", key=f"u_{choice}")
+            notes = st.text_area("SESSION NOTES", key=f"n_{choice}")
             if notes:
-                st.download_button("💾 Export Notes (.txt)", notes, f"{choice}.txt")
+                st.download_button("DOWNLOAD NOTES (.TXT)", notes, f"{choice}.txt")
 
         with tab2:
-            tool = st.radio("Study Protocol", ["Summary", "Quiz", "Flashcards"], horizontal=True)
-            if st.button("Generate"):
-                with st.spinner("AI processing..."):
+            tool = st.radio("SELECT PROTOCOL", ["Summary", "Quiz", "Flashcards"], horizontal=True)
+            if st.button("GENERATE AID"):
+                with st.spinner("Processing..."):
                     st.write(ask_synapse(f"Generate {tool} for {choice}"))
         with tab3:
-            mins = st.slider("Focus Minutes", 1, 60, 25)
-            if st.button("Start Timer"):
+            mins = st.slider("FOCUS DURATION (MINS)", 1, 60, 25)
+            if st.button("START SESSION"):
                 t_secs = mins * 60
                 t_disp = st.empty()
                 p_bar = st.progress(0)
                 for t in range(t_secs, -1, -1):
                     m, s = divmod(t, 60)
-                    t_disp.header(f"⏳ {m:02d}:{s:02d}")
+                    t_disp.header(f"TIMER: {m:02d}:{s:02d}")
                     p_bar.progress(1.0 - (t / t_secs))
                     time.sleep(1)
                 st.balloons()
-    else: st.info("No folders match your search.")
+    else: st.info("No folders detected. Use Dashboard to initialize.")
