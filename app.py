@@ -3,7 +3,7 @@ import sqlite3
 import requests
 from datetime import datetime, date
 
-# v11.0 - 100% LOGIC ATTENDANCE SYSTEM
+# v12.0 - MEDIA UPLOAD + ATTENDANCE LOGIC
 st.set_page_config(page_title="Synapse Pad", layout="wide")
 
 # ------------------- SQLite Setup -------------------
@@ -132,30 +132,30 @@ elif page == "📂 Subject Explorer":
         st.info("No folders found.")
     else:
         choice = st.selectbox("Open Folder:", filtered_subs)
-        st.header(f"📁 Folder: {choice}")
         
-        # --- THE 100% ATTENDANCE LOGIC ---
+        # --- TOP SECTION: ATTENDANCE MATH ---
         cursor.execute("SELECT COUNT(*) FROM items WHERE name=? AND type='Class'", (choice,))
         total_classes = cursor.fetchone()[0]
-        
         cursor.execute("SELECT COUNT(*) FROM items WHERE name=? AND type='Class' AND attended=1", (choice,))
         attended_classes = cursor.fetchone()[0]
         
-        # Calculation: Default to 100 if no classes exist
-        if total_classes == 0:
-            final_percentage = 100
-        else:
-            final_percentage = round((attended_classes / total_classes) * 100, 1)
+        final_percentage = 100 if total_classes == 0 else round((attended_classes / total_classes) * 100, 1)
         
-        st.metric("Attendance Rate", f"{final_percentage}%", delta=f"{attended_classes}/{total_classes} Classes")
-        
-        if final_percentage < 75:
-            st.warning("⚠️ Low Attendance! You need to attend more classes to stay above 75%.")
+        col_metrics, col_btn = st.columns([3, 1])
+        with col_metrics:
+            st.metric("Attendance Rate", f"{final_percentage}%", delta=f"{attended_classes}/{total_classes} Classes")
+        with col_btn:
+            if st.button("🗑️ Delete Folder", use_container_width=True):
+                cursor.execute("DELETE FROM subjects WHERE name=?", (choice,))
+                cursor.execute("DELETE FROM items WHERE name=?", (choice,))
+                conn.commit()
+                st.session_state.subjects.remove(choice)
+                st.rerun()
         
         st.divider()
-        if st.button("🗑️ Delete Folder"):
-            cursor.execute("DELETE FROM subjects WHERE name=?", (choice,))
-            cursor.execute("DELETE FROM items WHERE name=?", (choice,)) # Delete associated items
-            conn.commit()
-            st.session_state.subjects.remove(choice)
-            st.rerun()
+        
+        # --- MEDIA OPTION (BACK AGAIN!) ---
+        st.subheader(f"📁 {choice} Media & Notes")
+        st.file_uploader("Upload Study Materials (PDF, PNG, etc.)", key=f"file_{choice}")
+        
+        st.info("Uploaded files will appear here for review during your presentation.")
