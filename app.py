@@ -3,52 +3,33 @@ import sqlite3
 import requests
 from datetime import datetime, date
 import time
+import pandas as pd
 
-# --- 1. UI CONFIGURATION (DEEP DARK BACKGROUND ONLY) ---
+# --- 1. UI CONFIGURATION ---
 st.set_page_config(page_title="SYNAPSE PAD: PRO", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. The Deep Dark Background you asked for */
-    .stApp {
-        background-color: #050505;
-        color: #ffffff;
-    }
-    
-    /* 2. Fix AI Text Visibility - Force White Text */
+    .stApp { background-color: #050505; color: #ffffff; }
     div[data-testid="stChatMessage"] p, .stMarkdown p, .stMarkdown li {
-        color: #ffffff !important;
-        font-size: 1.1rem !important;
-        font-weight: 500 !important;
+        color: #ffffff !important; font-size: 1.1rem !important;
     }
-
-    /* 3. Make Subject Folders look like Folders again */
     .stMetric, div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"] {
         background: #161b22 !important;
         border: 2px solid #00f2ff !important;
         border-radius: 15px !important;
         color: #ffffff !important;
     }
-
-    /* 4. Neon Buttons */
     div.stButton > button {
-        border: 2px solid #00f2ff;
-        background-color: #000000;
-        color: #00f2ff;
-        font-weight: bold;
-        width: 100%;
-        border-radius: 10px;
+        border: 2px solid #00f2ff; background-color: #000000;
+        color: #00f2ff; font-weight: bold; width: 100%; border-radius: 10px;
     }
     div.stButton > button:hover {
-        background-color: #00f2ff !important;
-        color: #000000 !important;
+        background-color: #00f2ff !important; color: #000000 !important;
         box-shadow: 0 0 15px #00f2ff;
     }
-
-    /* 5. Input Visibility */
     input, textarea {
-        background-color: #000000 !important;
-        color: #ffffff !important;
+        background-color: #000000 !important; color: #ffffff !important;
         border: 1px solid #00f2ff !important;
     }
     </style>
@@ -74,7 +55,7 @@ def ask_synapse(prompt):
         headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3.2-3B-Instruct", 
-            "messages": [{"role": "system", "content": "You are Synapse Pro AI. Answer clearly."},
+            "messages": [{"role": "system", "content": "You are Synapse Pro AI."},
                          {"role": "user", "content": prompt}]
         }
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
@@ -82,14 +63,24 @@ def ask_synapse(prompt):
     except:
         return "⚠️ CONNECTION ERROR: Check HF_TOKEN."
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (WITH EMERGENCY RESET) ---
 with st.sidebar:
     st.title("⚡ SYNAPSE PRO")
     page = st.radio("Navigate", ["📊 Dashboard", "🤖 Synapse AI", "📂 Subject Explorer"])
+    
+    st.divider()
+    with st.expander("🛠️ SYSTEM SETTINGS"):
+        if st.button("🚨 EMERGENCY DATA RESET"):
+            cursor.execute("DELETE FROM items")
+            cursor.execute("DELETE FROM subjects")
+            conn.commit()
+            st.warning("All data purged.")
+            st.rerun()
+    
     cursor.execute("SELECT name FROM subjects")
     subjects_list = [row[0] for row in cursor.fetchall()]
 
-# --- 5. DASHBOARD (RESTORING ADD TASK) ---
+# --- 5. DASHBOARD (WITH PIE CHART) ---
 if page == "📊 Dashboard":
     st.title("📊 Main Dashboard")
     col1, col2 = st.columns([1, 2])
@@ -100,6 +91,20 @@ if page == "📊 Dashboard":
         m_used = cursor.fetchone()[0] or 0
         st.metric("Capacity Used", f"{m_used}/960 mins")
         st.progress(min(m_used / 960, 1.0))
+
+        # PIE CHART
+        cursor.execute("SELECT type, SUM(minutes) FROM items WHERE item_date=? GROUP BY type", (sel_date,))
+        chart_data = cursor.fetchall()
+        if chart_data:
+            df = pd.DataFrame(chart_data, columns=['Type', 'Minutes'])
+            st.write("🕒 **Neural Distribution**")
+            st.vega_lite_chart(df, {
+                'mark': {'type': 'arc', 'innerRadius': 40},
+                'encoding': {
+                    'theta': {'field': 'Minutes', 'type': 'quantitative'},
+                    'color': {'field': 'Type', 'type': 'nominal', 'scale': {'range': ['#00f2ff', '#ab47bc']}},
+                }
+            }, use_container_width=True)
         
         with st.expander("🏫 Schedule Class"):
             if subjects_list:
@@ -107,27 +112,23 @@ if page == "📊 Dashboard":
                 c_min = st.number_input("Minutes", 15, 480, 60)
                 if st.button("Add to Schedule"):
                     cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(c_sub,"Class",c_min,sel_date))
-                    conn.commit()
-                    st.rerun()
+                    conn.commit(); st.rerun()
             else: st.warning("Create a folder first.")
 
-        # --- RESTORED ADD TASK OPTION ---
         with st.expander("📝 Add Task"):
             t_name = st.text_input("Task Description")
             t_min = st.number_input("Task Minutes", 15, 300, 30)
             if st.button("Log Task"):
                 if t_name:
                     cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(t_name,"Task",t_min,sel_date))
-                    conn.commit()
-                    st.rerun()
+                    conn.commit(); st.rerun()
 
         st.divider()
         new_s = st.text_input("Create New Subject Folder")
         if st.button("Create Folder"):
             if new_s:
                 cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)", (new_s,))
-                conn.commit()
-                st.rerun()
+                conn.commit(); st.rerun()
 
     with col2:
         st.subheader(f"Timeline for {sel_date}")
@@ -140,45 +141,50 @@ if page == "📊 Dashboard":
                 if i_type == "Class":
                     if c2.checkbox("Done", value=bool(i_att), key=f"c_{i_id}"):
                         cursor.execute("UPDATE items SET attended=1 WHERE id=?", (i_id,))
-                        conn.commit()
-                        st.rerun()
+                        conn.commit(); st.rerun()
                 if c3.button("🗑️", key=f"d_{i_id}"):
                     cursor.execute("DELETE FROM items WHERE id=?", (i_id,))
-                    conn.commit()
-                    st.rerun()
+                    conn.commit(); st.rerun()
 
-# --- 6. SYNAPSE AI (FIXED VISIBILITY) ---
+# --- 6. SYNAPSE AI ---
 elif page == "🤖 Synapse AI":
     st.title("🤖 Synapse AI Assistant")
     u_q = st.chat_input("Ask anything...")
     if u_q:
         with st.chat_message("user"): st.write(u_q)
         with st.chat_message("assistant"):
-            response = ask_synapse(u_q)
-            st.markdown(f"**{response}**") # Bolded for extra visibility
+            st.markdown(f"**{ask_synapse(u_q)}**")
 
-# --- 7. SUBJECT EXPLORER (RENAMED BACK) ---
+# --- 7. SUBJECT EXPLORER (WITH EXPORT) ---
 elif page == "📂 Subject Explorer":
     st.title("📂 Subject Explorer")
     if subjects_list:
         choice = st.selectbox("Open Subject Folder", subjects_list)
         cursor.execute("SELECT COUNT(*), SUM(attended) FROM items WHERE name=? AND type='Class'", (choice,))
-        total, att = cursor.fetchone()
-        att = att or 0
+        total, res_att = cursor.fetchone()
+        att = res_att or 0
         score = 100 if total == 0 else round((att/total)*100, 1)
-        
         st.metric("Attendance Score", f"{score}%")
         
         tab1, tab2, tab3 = st.tabs(["📚 Materials", "🧠 AI Study Tools", "⏱️ Focus Timer"])
         with tab1:
             st.file_uploader("Upload Documents", key=f"u_{choice}")
-            st.text_area("Notes", key=f"n_{choice}")
+            notes_content = st.text_area("Notes", key=f"n_{choice}")
+            
+            # EXPORT FEATURE
+            if notes_content:
+                st.download_button(
+                    label="💾 EXPORT NOTES TO TXT",
+                    data=notes_content,
+                    file_name=f"{choice}_Notes.txt",
+                    mime="text/plain"
+                )
+
         with tab2:
             tool = st.radio("Generate Study Aid", ["Summary", "Quiz", "Flashcards"], horizontal=True)
             if st.button("Generate Action"):
-                with st.spinner("AI is generating..."):
-                    res = ask_synapse(f"Generate {tool} for the subject {choice}")
-                    st.markdown(res)
+                with st.spinner("AI Generating..."):
+                    st.markdown(ask_synapse(f"Generate {tool} for {choice}"))
         with tab3:
             mins = st.slider("Session Minutes", 1, 60, 25)
             if st.button("Start Timer"):
@@ -191,4 +197,4 @@ elif page == "📂 Subject Explorer":
                     p_bar.progress(1.0 - (t / t_secs))
                     time.sleep(1)
                 st.balloons()
-    else: st.info("No subject folders found. Go to Dashboard to create one.")
+    else: st.info("No folders found.")
