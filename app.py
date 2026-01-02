@@ -5,61 +5,60 @@ from datetime import datetime, date
 import time
 import pandas as pd
 
-# --- 1. UI CONFIGURATION (EYE-FRIENDLY MODERN BLUE) ---
+# --- 1. UI CONFIGURATION (LIGHT THEME - ZERO BLACK) ---
 st.set_page_config(page_title="SYNAPSE PAD: PRO", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. Deep Midnight Blue Background (Easier on eyes than Black) */
+    /* 1. Light Arctic Background */
     .stApp {
-        background-color: #1a1c24;
-        color: #ffffff;
+        background-color: #f4f7f9;
+        color: #1a2a3a;
     }
     
-    /* 2. Sidebar - Darker Slate */
+    /* 2. Sidebar - Navy Blue */
     section[data-testid="stSidebar"] {
-        background-color: #111217 !important;
-        border-right: 2px solid #4facfe;
+        background-color: #1a2a3a !important;
+        border-right: 1px solid #d1d9e0;
+    }
+    section[data-testid="stSidebar"] * {
+        color: white !important;
     }
 
-    /* 3. Containers - Cloud Grey/Blue (High Visibility) */
+    /* 3. Containers - High Visibility White */
     .stMetric, div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"], [data-testid="stChatMessage"] {
-        background: #f0f2f6 !important;
-        border: 1px solid #4facfe !important;
+        background: #ffffff !important;
+        border: 1px solid #d1d9e0 !important;
         border-radius: 12px !important;
-        color: #1a1c24 !important; /* Dark text for light boxes */
+        color: #1a2a3a !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         padding: 15px;
     }
 
-    /* 4. Ensure Markdown text inside containers is visible (Dark on Light) */
-    .stMetric div, .stExpander div, .stTabs p, [data-testid="stChatMessage"] p {
-        color: #1a1c24 !important;
+    /* 4. Text Visibility Fixes */
+    p, li, label, .stMetric div {
+        color: #1a2a3a !important;
     }
 
-    /* 5. Sapphire Buttons */
+    /* 5. Professional Blue Buttons */
     div.stButton > button {
-        background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+        background-color: #2e7d32;
         color: white !important;
         border: none;
         font-weight: bold;
         border-radius: 8px;
-        transition: 0.3s;
+        height: 3em;
     }
     div.stButton > button:hover {
-        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.5);
-        transform: translateY(-2px);
+        background-color: #1b5e20 !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
-    /* 6. Input Fields - Bright and Sharp */
+    /* 6. Inputs - Clear and Defined */
     input, textarea {
         background-color: #ffffff !important;
-        color: #1a1c24 !important;
-        border: 2px solid #4facfe !important;
-    }
-    
-    /* 7. Titles */
-    h1, h2, h3 {
-        color: #4facfe !important;
+        color: #1a2a3a !important;
+        border: 1px solid #cbd5e0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -92,48 +91,56 @@ def ask_synapse(prompt):
     except:
         return "⚠️ CONNECTION ERROR: Check HF_TOKEN."
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (RESTORED SEARCH BAR) ---
 with st.sidebar:
-    st.title("💎 SYNAPSE PRO")
+    st.title("🛡️ SYNAPSE PRO")
+    
+    # RESTORED SEARCH BAR
+    search_query = st.text_input("🔍 Search Folders", "").lower()
+    
+    st.divider()
     page = st.radio("Navigate", ["📊 Dashboard", "🤖 Synapse AI", "📂 Subject Explorer"])
     
     st.divider()
     with st.expander("🛠️ SYSTEM SETTINGS"):
         if st.button("🚨 EMERGENCY DATA RESET"):
             cursor.execute("DELETE FROM items"); cursor.execute("DELETE FROM subjects")
-            conn.commit(); st.warning("All data purged."); st.rerun()
+            conn.commit(); st.rerun()
     
     cursor.execute("SELECT name FROM subjects")
     subjects_list = [row[0] for row in cursor.fetchall()]
+    # Filter subjects based on search
+    filtered_subs = [s for s in subjects_list if search_query in s.lower()]
 
 # --- 5. DASHBOARD ---
 if page == "📊 Dashboard":
-    st.title("📊 Control Dashboard")
+    st.title("📊 Main Dashboard")
     col1, col2 = st.columns([1.2, 2])
     
     with col1:
         sel_date = st.date_input("Target Date", date.today()).strftime("%Y-%m-%d")
         cursor.execute("SELECT SUM(minutes) FROM items WHERE item_date=?", (sel_date,))
         m_used = cursor.fetchone()[0] or 0
-        st.metric("Daily Capacity", f"{m_used}/960 mins")
+        st.metric("Total Load", f"{m_used}/960 mins")
         st.progress(min(m_used / 960, 1.0))
 
-        # PIE CHART (Now in Sapphire tones)
+        # PIE CHART
         cursor.execute("SELECT type, SUM(minutes) FROM items WHERE item_date=? GROUP BY type", (sel_date,))
         chart_data = cursor.fetchall()
         if chart_data:
             df = pd.DataFrame(chart_data, columns=['Type', 'Minutes'])
+            st.write("**Activity Breakdown**")
             st.vega_lite_chart(df, {
                 'mark': {'type': 'arc', 'innerRadius': 40},
                 'encoding': {
                     'theta': {'field': 'Minutes', 'type': 'quantitative'},
-                    'color': {'field': 'Type', 'type': 'nominal', 'scale': {'range': ['#4facfe', '#00f2fe']}},
+                    'color': {'field': 'Type', 'type': 'nominal', 'scale': {'range': ['#2e7d32', '#1a2a3a']}},
                 }
             }, use_container_width=True)
         
         with st.expander("🏫 Schedule Class"):
             if subjects_list:
-                c_sub = st.selectbox("Choose Subject", subjects_list)
+                c_sub = st.selectbox("Select Subject", subjects_list)
                 c_min = st.number_input("Minutes", 15, 480, 60)
                 if st.button("Add to Schedule"):
                     cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(c_sub,"Class",c_min,sel_date))
@@ -148,8 +155,8 @@ if page == "📊 Dashboard":
                     conn.commit(); st.rerun()
 
         st.divider()
-        new_s = st.text_input("Create Subject Folder")
-        if st.button("Initialize Folder"):
+        new_s = st.text_input("New Folder Name")
+        if st.button("Create Subject Folder"):
             if new_s:
                 cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)", (new_s,))
                 conn.commit(); st.rerun()
@@ -172,7 +179,7 @@ if page == "📊 Dashboard":
 
 # --- 6. SYNAPSE AI ---
 elif page == "🤖 Synapse AI":
-    st.title("🤖 AI Research Assistant")
+    st.title("🤖 AI Assistant")
     u_q = st.chat_input("Ask a question...")
     if u_q:
         with st.chat_message("user"): st.write(u_q)
@@ -182,8 +189,11 @@ elif page == "🤖 Synapse AI":
 # --- 7. SUBJECT EXPLORER ---
 elif page == "📂 Subject Explorer":
     st.title("📂 Workspace Explorer")
-    if subjects_list:
-        choice = st.selectbox("Active Folder", subjects_list)
+    # Use filtered list from sidebar search
+    display_list = filtered_subs if search_query else subjects_list
+    
+    if display_list:
+        choice = st.selectbox("Choose Folder", display_list)
         cursor.execute("SELECT COUNT(*), SUM(attended) FROM items WHERE name=? AND type='Class'", (choice,))
         total, res_att = cursor.fetchone()
         att = res_att or 0
@@ -214,4 +224,4 @@ elif page == "📂 Subject Explorer":
                     p_bar.progress(1.0 - (t / t_secs))
                     time.sleep(1)
                 st.balloons()
-    else: st.info("Create a folder in the Dashboard first.")
+    else: st.info("No folders match your search.")
