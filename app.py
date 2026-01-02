@@ -13,7 +13,13 @@ st.markdown("""
     .stApp { background-color: #f8fafc; color: #1e293b; font-family: 'Inter', sans-serif; }
     section[data-testid="stSidebar"] { background-color: #0f172a !important; }
     section[data-testid="stSidebar"] * { color: #f8fafc !important; }
-    .stMetric, div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"], [data-testid="stChatMessage"] {
+    .stMetric {
+        background: #ffffff !important; 
+        border: 2px solid #10b981 !important; /* Green border for scores */
+        border-radius: 10px !important; 
+        padding: 15px !important;
+    }
+    div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"], [data-testid="stChatMessage"] {
         background: #ffffff !important; border: 1px solid #cbd5e1 !important;
         border-radius: 8px !important; color: #1e293b !important; padding: 18px;
     }
@@ -28,7 +34,6 @@ st.markdown("""
 # --- 2. DATABASE ---
 conn = sqlite3.connect("synapse_final.db", check_same_thread=False)
 cursor = conn.cursor()
-# Added 'marks' column to subjects table
 cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name TEXT PRIMARY KEY, marks TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, minutes INTEGER, item_date TEXT, attended INTEGER DEFAULT 0)")
 conn.commit()
@@ -47,7 +52,7 @@ def ask_synapse(prompt):
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         return res.json()['choices'][0]['message']['content']
     except:
-        return "⚠️ AI OFFLINE: Check Secrets."
+        return "⚠️ AI OFFLINE."
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
@@ -56,10 +61,9 @@ with st.sidebar:
     st.divider()
     page = st.radio("NAVIGATION", ["DASHBOARD", "SYNAPSE AI", "SUBJECT EXPLORER"])
     st.divider()
-    with st.expander("🛠️ SYSTEM SETTINGS"):
-        if st.button("🚨 RESET ALL DATA"):
-            cursor.execute("DELETE FROM items"); cursor.execute("DELETE FROM subjects")
-            conn.commit(); st.rerun()
+    if st.button("🚨 RESET ALL DATA"):
+        cursor.execute("DELETE FROM items"); cursor.execute("DELETE FROM subjects")
+        conn.commit(); st.rerun()
 
     cursor.execute("SELECT name FROM subjects")
     subjects_list = [row[0] for row in cursor.fetchall()]
@@ -91,16 +95,14 @@ if page == "DASHBOARD":
         with st.expander("ADD CLASS"):
             if subjects_list:
                 c_sub = st.selectbox("SELECT SUBJECT", subjects_list)
-                c_min = st.number_input("MINS", 15, 480, 60)
                 if st.button("SAVE CLASS"):
-                    cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(c_sub,"Class",c_min,sel_date))
+                    cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(c_sub,"Class",60,sel_date))
                     conn.commit(); st.rerun()
         
         with st.expander("ADD TASK"):
             t_name = st.text_input("TASK LABEL")
-            t_min = st.number_input("TASK MINS", 15, 300, 30)
             if st.button("SAVE TASK"):
-                cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(t_name,"Task",t_min,sel_date))
+                cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(t_name,"Task",30,sel_date))
                 conn.commit(); st.rerun()
 
         new_s = st.text_input("CREATE NEW FOLDER")
@@ -115,22 +117,14 @@ if page == "DASHBOARD":
         for i_id, i_name, i_type, i_mins, i_att in cursor.fetchall():
             with st.container():
                 c1, c2, c3 = st.columns([4, 1, 1])
-                c1.write(f"**[{i_type.upper()}]** {i_name} ({i_mins}m)")
+                c1.write(f"**[{i_type.upper()}]** {i_name}")
                 if i_type == "Class":
                     if c2.checkbox("DONE", value=bool(i_att), key=f"c_{i_id}"):
                         cursor.execute("UPDATE items SET attended=1 WHERE id=?"); conn.commit()
                 if c3.button("DEL", key=f"d_{i_id}"):
                     cursor.execute("DELETE FROM items WHERE id=?"); conn.commit(); st.rerun()
 
-# --- 6. SYNAPSE AI ---
-elif page == "SYNAPSE AI":
-    st.title("Synapse AI Core")
-    u_q = st.chat_input("Command...")
-    if u_q:
-        with st.chat_message("user"): st.write(u_q)
-        with st.chat_message("assistant"): st.write(ask_synapse(u_q))
-
-# --- 7. SUBJECT EXPLORER (EFFICIENCY + MARKS ADDED) ---
+# --- 6. SUBJECT EXPLORER (EFFICIENCY + GRADE INPUT FIX) ---
 elif page == "SUBJECT EXPLORER":
     st.title("Workspace Explorer")
     display_list = filtered_subs if search_query else subjects_list
@@ -138,51 +132,52 @@ elif page == "SUBJECT EXPLORER":
     if display_list:
         choice = st.selectbox("ACTIVE FOLDER", display_list)
         
-        # Calculations for Attendance
+        # 1. DATA FETCHING
         cursor.execute("SELECT COUNT(*), SUM(attended) FROM items WHERE name=? AND type='Class'", (choice,))
         total, res_att = cursor.fetchone()
         att_rate = 100 if total == 0 else round(((res_att or 0)/total)*100, 1)
         
-        # Calculations for Efficiency (Average Marks)
         cursor.execute("SELECT marks FROM subjects WHERE name=?", (choice,))
         saved_marks = cursor.fetchone()[0] or ""
         mark_list = [float(x) for x in saved_marks.split(',') if x.strip()]
         avg_mark = round(sum(mark_list)/len(mark_list), 1) if mark_list else 0.0
         
-        # EFFICIENCY SCORE (Average of Marks and Attendance)
         eff_score = round((att_rate + avg_mark) / 2, 1) if mark_list else att_rate
 
+        # 2. THE TOP METRICS (EFFICIENCY SCORE DISPLAYED HERE)
         m1, m2, m3 = st.columns(3)
-        m1.metric("SYNC RATE (ATTENDANCE)", f"{att_rate}%")
-        m2.metric("ACADEMIC AVERAGE", f"{avg_mark}%")
+        m1.metric("SYNC RATE", f"{att_rate}%")
+        m2.metric("ACADEMIC AVG", f"{avg_mark}%")
         m3.metric("EFFICIENCY SCORE", f"{eff_score}%")
         
-        tab1, tab2, tab3 = st.tabs(["MATERIALS", "STUDY TOOLS", "TIMER"])
+        st.divider()
+
+        # 3. TABS
+        tab1, tab2, tab3 = st.tabs(["MATERIALS & GRADES", "AI STUDY TOOLS", "FOCUS TIMER"])
         
         with tab1:
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.write("**Grade Input**")
-                new_marks = st.text_input("Enter Marks (comma separated, e.g. 80, 95, 70)", value=saved_marks)
-                if st.button("UPDATE MARKS"):
-                    cursor.execute("UPDATE subjects SET marks=? WHERE name=?", (new_marks, choice))
-                    conn.commit(); st.rerun()
-            with col_b:
-                st.write("**Media Upload**")
-                uploaded_file = st.file_uploader("UPLOAD MEDIA", key=f"u_{choice}")
+            st.subheader("Grade Management")
+            # --- THE MISSING GRADE INPUT BOX ---
+            grade_input = st.text_input("Enter Marks (Example: 85, 90, 78)", value=saved_marks, help="Separate marks with commas")
+            if st.button("UPDATE SUBJECT GRADES"):
+                cursor.execute("UPDATE subjects SET marks=? WHERE name=?", (grade_input, choice))
+                conn.commit()
+                st.success("Grades Synced!")
+                time.sleep(1)
+                st.rerun()
             
+            st.divider()
+            st.subheader("Subject Media")
+            uploaded_file = st.file_uploader("UPLOAD PDF/TXT", key=f"u_{choice}")
             notes = st.text_area("SESSION NOTES", height=200, key=f"notes_{choice}")
-            if notes:
-                st.download_button("DOWNLOAD (.TXT)", notes, f"{choice}_notes.txt")
 
         with tab2:
-            st.subheader("Neural Study Protocol")
+            st.subheader("Neural Analysis")
             tool = st.radio("SELECT TOOL", ["Doc-to-Text", "Summary", "Quiz", "Flashcards"], horizontal=True)
             if st.button("EXECUTE ANALYSIS"):
                 user_context = st.session_state.get(f"notes_{choice}", "")
-                file_name = uploaded_file.name if uploaded_file else "None"
-                prompt = f"Subject: {choice}. Media: {file_name}. Notes: {user_context}. Task: Create {tool}."
-                with st.spinner("Analyzing..."):
+                prompt = f"Subject: {choice}. Notes: {user_context}. Task: Create {tool}."
+                with st.spinner("Processing..."):
                     st.write(ask_synapse(prompt))
 
         with tab3:
@@ -192,8 +187,4 @@ elif page == "SUBJECT EXPLORER":
                 t_disp = st.empty(); p_bar = st.progress(0)
                 for t in range(t_secs, -1, -1):
                     m, s = divmod(t, 60)
-                    t_disp.header(f"REMAINING: {m:02d}:{s:02d}")
-                    p_bar.progress(1.0 - (t/t_secs))
-                    time.sleep(1)
-                st.balloons()
-    else: st.info("No folders found.")
+                    t_disp.header(f"RE
