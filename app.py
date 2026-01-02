@@ -5,70 +5,24 @@ from datetime import datetime, date
 import time
 import pandas as pd
 
-# --- 1. UI CONFIGURATION (ARCTIC THEME - NO BLACK - NO BROKEN EMOJIS) ---
+# --- 1. UI CONFIGURATION ---
 st.set_page_config(page_title="SYNAPSE PAD: PRO", layout="wide")
 
 st.markdown("""
     <style>
-    /* Arctic Base */
-    .stApp {
-        background-color: #f8fafc;
-        color: #1e293b;
-        font-family: 'Inter', -apple-system, sans-serif;
-    }
-    
-    /* Navy Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #0f172a !important;
-        border-right: 1px solid #e2e8f0;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #f8fafc !important;
-    }
-
-    /* Clean White Cards */
+    .stApp { background-color: #f8fafc; color: #1e293b; font-family: 'Inter', sans-serif; }
+    section[data-testid="stSidebar"] { background-color: #0f172a !important; }
+    section[data-testid="stSidebar"] * { color: #f8fafc !important; }
     .stMetric, div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"], [data-testid="stChatMessage"] {
-        background: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
-        border-radius: 8px !important;
-        color: #1e293b !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        padding: 18px;
+        background: #ffffff !important; border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important; color: #1e293b !important; padding: 18px;
     }
-
-    /* Text Clarity */
-    p, li, label, span, div {
-        color: #1e293b !important;
-    }
-
-    /* Emerald Green Professional Buttons */
     div.stButton > button {
-        background-color: #10b981;
-        color: white !important;
-        border: none;
-        font-weight: 600;
-        border-radius: 6px;
-        transition: 0.2s;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        background-color: #10b981; color: white !important; font-weight: 600; border-radius: 6px; width: 100%;
     }
-    div.stButton > button:hover {
-        background-color: #059669 !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Inputs */
-    input, textarea {
-        background-color: #ffffff !important;
-        color: #1e293b !important;
-        border: 1px solid #94a3b8 !important;
-    }
-
-    /* Titles */
-    h1, h2, h3 {
-        color: #0f172a !important;
-        font-weight: 700 !important;
-    }
+    div.stButton > button:hover { background-color: #059669 !important; }
+    input, textarea { background-color: #ffffff !important; color: #1e293b !important; border: 1px solid #94a3b8 !important; }
+    h1, h2, h3 { color: #0f172a !important; font-weight: 700 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -92,27 +46,20 @@ def ask_synapse(prompt):
         headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3.2-3B-Instruct", 
-            "messages": [{"role": "system", "content": "You are Synapse Pro AI."},
+            "messages": [{"role": "system", "content": "You are Synapse Pro AI. Use the provided text to generate study aids."},
                          {"role": "user", "content": prompt}]
         }
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         return res.json()['choices'][0]['message']['content']
     except:
-        return "SYSTEM NOTIFICATION: AI connection timed out. Check HF_TOKEN."
+        return "SYSTEM NOTIFICATION: AI connection failed. Ensure HF_TOKEN is in Secrets."
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("SYNAPSE PRO")
     search_query = st.text_input("SEARCH FOLDERS", "").lower()
-    
     st.divider()
     page = st.radio("NAVIGATION", ["DASHBOARD", "SYNAPSE AI", "SUBJECT EXPLORER"])
-    
-    st.divider()
-    with st.expander("SYSTEM SETTINGS"):
-        if st.button("RESET ALL DATA"):
-            cursor.execute("DELETE FROM items"); cursor.execute("DELETE FROM subjects")
-            conn.commit(); st.rerun()
     
     cursor.execute("SELECT name FROM subjects")
     subjects_list = [row[0] for row in cursor.fetchall()]
@@ -122,7 +69,6 @@ with st.sidebar:
 if page == "DASHBOARD":
     st.title("System Dashboard")
     col1, col2 = st.columns([1.2, 2])
-    
     with col1:
         sel_date = st.date_input("TARGET DATE", date.today()).strftime("%Y-%m-%d")
         cursor.execute("SELECT SUM(minutes) FROM items WHERE item_date=?", (sel_date,))
@@ -130,12 +76,10 @@ if page == "DASHBOARD":
         st.metric("NEURAL CAPACITY", f"{m_used}/960 MINS")
         st.progress(min(m_used / 960, 1.0))
 
-        # PIE CHART
         cursor.execute("SELECT type, SUM(minutes) FROM items WHERE item_date=? GROUP BY type", (sel_date,))
         chart_data = cursor.fetchall()
         if chart_data:
             df = pd.DataFrame(chart_data, columns=['Type', 'Minutes'])
-            st.write("**TIME DISTRIBUTION**")
             st.vega_lite_chart(df, {
                 'mark': {'type': 'arc', 'innerRadius': 45},
                 'encoding': {
@@ -154,11 +98,10 @@ if page == "DASHBOARD":
 
         with st.expander("LOG NEW TASK"):
             t_name = st.text_input("TASK DESCRIPTION")
-            t_min = st.number_input("TASK MINUTES", 15, 300, 30)
+            t_min = st.number_input("TASK MINS", 15, 300, 30)
             if st.button("SAVE TASK"):
-                if t_name:
-                    cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(t_name,"Task",t_min,sel_date))
-                    conn.commit(); st.rerun()
+                cursor.execute("INSERT INTO items(name,type,minutes,item_date) VALUES (?,?,?,?)",(t_name,"Task",t_min,sel_date))
+                conn.commit(); st.rerun()
 
         st.divider()
         new_s = st.text_input("NEW FOLDER NAME")
@@ -168,7 +111,7 @@ if page == "DASHBOARD":
                 conn.commit(); st.rerun()
 
     with col2:
-        st.subheader(f"DAILY TIMELINE: {sel_date}")
+        st.subheader(f"TIMELINE: {sel_date}")
         cursor.execute("SELECT id, name, type, minutes, attended FROM items WHERE item_date=?", (sel_date,))
         for i_id, i_name, i_type, i_mins, i_att in cursor.fetchall():
             with st.container():
@@ -183,16 +126,15 @@ if page == "DASHBOARD":
                     cursor.execute("DELETE FROM items WHERE id=?", (i_id,))
                     conn.commit(); st.rerun()
 
-# --- 6. SYNAPSE AI ---
+# --- 6. SYNAPSE AI (GENERAL CHAT) ---
 elif page == "SYNAPSE AI":
     st.title("Synapse AI Core")
-    u_q = st.chat_input("Enter command...")
+    u_q = st.chat_input("Ask a general academic question...")
     if u_q:
         with st.chat_message("user"): st.write(u_q)
-        with st.chat_message("assistant"):
-            st.write(ask_synapse(u_q))
+        with st.chat_message("assistant"): st.write(ask_synapse(u_q))
 
-# --- 7. SUBJECT EXPLORER ---
+# --- 7. SUBJECT EXPLORER (STUDY TOOLS FIXED) ---
 elif page == "SUBJECT EXPLORER":
     st.title("Subject Archives")
     display_list = filtered_subs if search_query else subjects_list
@@ -206,17 +148,29 @@ elif page == "SUBJECT EXPLORER":
         st.metric("ATTENDANCE RATE", f"{score}%")
         
         tab1, tab2, tab3 = st.tabs(["MATERIALS", "AI STUDY TOOLS", "FOCUS TIMER"])
+        
         with tab1:
+            st.write(f"Manage documents and notes for **{choice}**")
             st.file_uploader("UPLOAD DATA", key=f"u_{choice}")
-            notes = st.text_area("SESSION NOTES", key=f"n_{choice}")
+            # Notes are saved in session state so AI can see them
+            notes = st.text_area("SESSION NOTES (Type here for AI to analyze)", height=300, key=f"notes_{choice}")
             if notes:
-                st.download_button("DOWNLOAD NOTES (.TXT)", notes, f"{choice}.txt")
+                st.download_button("DOWNLOAD NOTES (.TXT)", notes, f"{choice}_notes.txt")
 
         with tab2:
-            tool = st.radio("SELECT PROTOCOL", ["Summary", "Quiz", "Flashcards"], horizontal=True)
-            if st.button("GENERATE AID"):
-                with st.spinner("Processing..."):
-                    st.write(ask_synapse(f"Generate {tool} for {choice}"))
+            st.subheader("AI Generation Engine")
+            if not st.session_state.get(f"notes_{choice}"):
+                st.warning("⚠️ No notes detected. Go to the 'MATERIALS' tab and type some notes first so the AI has something to analyze!")
+            else:
+                tool = st.radio("SELECT PROTOCOL", ["Summary", "Quiz", "Flashcards"], horizontal=True)
+                if st.button("RUN AI GENERATOR"):
+                    user_notes = st.session_state[f"notes_{choice}"]
+                    prompt = f"Based on these notes for {choice}: '{user_notes}', please generate a {tool}."
+                    with st.spinner("AI is analyzing your notes..."):
+                        result = ask_synapse(prompt)
+                        st.markdown("### Generated Output")
+                        st.write(result)
+
         with tab3:
             mins = st.slider("FOCUS DURATION (MINS)", 1, 60, 25)
             if st.button("START SESSION"):
@@ -228,5 +182,5 @@ elif page == "SUBJECT EXPLORER":
                     t_disp.header(f"TIMER: {m:02d}:{s:02d}")
                     p_bar.progress(1.0 - (t / t_secs))
                     time.sleep(1)
-                st.balloons()
-    else: st.info("No folders detected. Use Dashboard to initialize.")
+                st.snow()
+    else: st.info("No folders detected.")
