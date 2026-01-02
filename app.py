@@ -28,7 +28,8 @@ st.markdown("""
 # --- 2. DATABASE ---
 conn = sqlite3.connect("synapse_final.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name PRIMARY KEY, notes TEXT)")
+# Added 'marks' column to subjects table
+cursor.execute("CREATE TABLE IF NOT EXISTS subjects (name TEXT PRIMARY KEY, marks TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, minutes INTEGER, item_date TEXT, attended INTEGER DEFAULT 0)")
 conn.commit()
 
@@ -40,15 +41,15 @@ def ask_synapse(prompt):
         headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
         payload = {
             "model": "meta-llama/Llama-3.2-3B-Instruct", 
-            "messages": [{"role": "system", "content": "You are Synapse Pro AI. You are an expert at document extraction and academic analysis."},
+            "messages": [{"role": "system", "content": "You are Synapse Pro AI."},
                          {"role": "user", "content": prompt}]
         }
         res = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         return res.json()['choices'][0]['message']['content']
     except:
-        return "⚠️ AI OFFLINE: Please check your HF_TOKEN in Streamlit Secrets."
+        return "⚠️ AI OFFLINE: Check Secrets."
 
-# --- 4. SIDEBAR (SEARCH + RESET) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("SYNAPSE PRO")
     search_query = st.text_input("🔍 SEARCH FOLDERS", "").lower()
@@ -79,7 +80,6 @@ if page == "DASHBOARD":
         chart_data = cursor.fetchall()
         if chart_data:
             df = pd.DataFrame(chart_data, columns=['Type', 'Minutes'])
-            st.write("**SCHEDULE VISUALIZATION**")
             st.vega_lite_chart(df, {
                 'mark': {'type': 'arc', 'innerRadius': 40},
                 'encoding': {
@@ -106,7 +106,7 @@ if page == "DASHBOARD":
         new_s = st.text_input("CREATE NEW FOLDER")
         if st.button("INITIALIZE"):
             if new_s:
-                cursor.execute("INSERT OR IGNORE INTO subjects(name) VALUES (?)", (new_s,))
+                cursor.execute("INSERT OR IGNORE INTO subjects(name, marks) VALUES (?,?)", (new_s, ""))
                 conn.commit(); st.rerun()
 
     with col2:
@@ -130,53 +130,60 @@ elif page == "SYNAPSE AI":
         with st.chat_message("user"): st.write(u_q)
         with st.chat_message("assistant"): st.write(ask_synapse(u_q))
 
-# --- 7. SUBJECT EXPLORER (DOC-TO-TEXT + ANALYSIS) ---
+# --- 7. SUBJECT EXPLORER (EFFICIENCY + MARKS ADDED) ---
 elif page == "SUBJECT EXPLORER":
     st.title("Workspace Explorer")
     display_list = filtered_subs if search_query else subjects_list
     
     if display_list:
         choice = st.selectbox("ACTIVE FOLDER", display_list)
+        
+        # Calculations for Attendance
         cursor.execute("SELECT COUNT(*), SUM(attended) FROM items WHERE name=? AND type='Class'", (choice,))
         total, res_att = cursor.fetchone()
-        att = res_att or 0
-        score = 100 if total == 0 else round((att/total)*100, 1)
-        st.metric("SYNC RATE", f"{score}%")
+        att_rate = 100 if total == 0 else round(((res_att or 0)/total)*100, 1)
+        
+        # Calculations for Efficiency (Average Marks)
+        cursor.execute("SELECT marks FROM subjects WHERE name=?", (choice,))
+        saved_marks = cursor.fetchone()[0] or ""
+        mark_list = [float(x) for x in saved_marks.split(',') if x.strip()]
+        avg_mark = round(sum(mark_list)/len(mark_list), 1) if mark_list else 0.0
+        
+        # EFFICIENCY SCORE (Average of Marks and Attendance)
+        eff_score = round((att_rate + avg_mark) / 2, 1) if mark_list else att_rate
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("SYNC RATE (ATTENDANCE)", f"{att_rate}%")
+        m2.metric("ACADEMIC AVERAGE", f"{avg_mark}%")
+        m3.metric("EFFICIENCY SCORE", f"{eff_score}%")
         
         tab1, tab2, tab3 = st.tabs(["MATERIALS", "STUDY TOOLS", "TIMER"])
         
         with tab1:
-            uploaded_file = st.file_uploader("UPLOAD MEDIA (PDF/TXT)", key=f"u_{choice}")
-            notes = st.text_area("SESSION NOTES", height=300, key=f"notes_{choice}")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.write("**Grade Input**")
+                new_marks = st.text_input("Enter Marks (comma separated, e.g. 80, 95, 70)", value=saved_marks)
+                if st.button("UPDATE MARKS"):
+                    cursor.execute("UPDATE subjects SET marks=? WHERE name=?", (new_marks, choice))
+                    conn.commit(); st.rerun()
+            with col_b:
+                st.write("**Media Upload**")
+                uploaded_file = st.file_uploader("UPLOAD MEDIA", key=f"u_{choice}")
+            
+            notes = st.text_area("SESSION NOTES", height=200, key=f"notes_{choice}")
             if notes:
                 st.download_button("DOWNLOAD (.TXT)", notes, f"{choice}_notes.txt")
 
         with tab2:
             st.subheader("Neural Study Protocol")
             tool = st.radio("SELECT TOOL", ["Doc-to-Text", "Summary", "Quiz", "Flashcards"], horizontal=True)
-            
             if st.button("EXECUTE ANALYSIS"):
                 user_context = st.session_state.get(f"notes_{choice}", "")
                 file_name = uploaded_file.name if uploaded_file else "None"
-                
-                if tool == "Doc-to-Text":
-                    if not uploaded_file:
-                        st.error("Please upload a document in the MATERIALS tab first.")
-                    else:
-                        with st.spinner("Extracting text from media..."):
-                            prompt = f"The user uploaded a document titled '{file_name}' for the subject '{choice}'. Extract the most important 10 paragraphs of educational content from this file so the student can study it as text."
-                            result = ask_synapse(prompt)
-                            st.markdown("### 📄 Extracted Content")
-                            st.write(result)
-                else:
-                    if not user_context and not uploaded_file:
-                        st.error("No notes or documents found. Please add content in the MATERIALS tab.")
-                    else:
-                        with st.spinner(f"Generating {tool}..."):
-                            prompt = f"Subject: {choice}. Media: {file_name}. Notes: {user_context}. Task: Create a comprehensive {tool}."
-                            result = ask_synapse(prompt)
-                            st.markdown(f"### ✨ Generated {tool}")
-                            st.write(result)
+                prompt = f"Subject: {choice}. Media: {file_name}. Notes: {user_context}. Task: Create {tool}."
+                with st.spinner("Analyzing..."):
+                    st.write(ask_synapse(prompt))
 
         with tab3:
             mins = st.slider("FOCUS SESSION", 1, 60, 25)
