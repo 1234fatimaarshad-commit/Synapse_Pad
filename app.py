@@ -10,16 +10,36 @@ st.set_page_config(page_title="SYNAPSE PAD: PRO", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp { background-color: #f8fafc; color: #1e293b; font-family: 'Inter', sans-serif; }
+    /* Main App Background */
+    .stApp { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
+    
+    /* SIDEBAR: Keep background dark and text white */
     section[data-testid="stSidebar"] { background-color: #0f172a !important; }
     section[data-testid="stSidebar"] * { color: #f8fafc !important; }
+
+    /* MAIN SCREEN ONLY: Turn all text elements to BLACK */
+    [data-testid="stMain"] p, 
+    [data-testid="stMain"] h1, 
+    [data-testid="stMain"] h2, 
+    [data-testid="stMain"] h3, 
+    [data-testid="stMain"] label,
+    [data-testid="stMain"] div,
+    [data-testid="stMain"] span,
+    [data-testid="stMain"] small { 
+        color: #000000 !important; 
+    }
+
+    /* Metric & Component Styling */
     .stMetric { background: #ffffff !important; border: 2px solid #10b981 !important; border-radius: 10px !important; padding: 15px !important; }
     div[data-testid="stExpander"], .stTabs [data-baseweb="tab-panel"], [data-testid="stChatMessage"] {
         background: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; padding: 18px;
     }
+    
+    /* Buttons: Keep white text for contrast on green background */
     div.stButton > button { background-color: #10b981; color: white !important; font-weight: 600; border-radius: 6px; width: 100%; }
-    input, textarea { background-color: #ffffff !important; color: #1e293b !important; border: 1px solid #94a3b8 !important; }
-    h1, h2, h3 { color: #0f172a !important; font-weight: 700 !important; }
+    
+    /* Input Fields: Ensure typed text is also black */
+    input, textarea { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #94a3b8 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -101,11 +121,11 @@ if page == "DASHBOARD":
                 c1.write(f"**[{i_type.upper()}]** {i_name}")
                 if i_type == "Class":
                     if c2.checkbox("DONE", value=bool(i_att), key=f"c_{i_id}"):
-                        cursor.execute("UPDATE items SET attended=1 WHERE id=?"); conn.commit(); st.rerun()
+                        cursor.execute("UPDATE items SET attended=1 WHERE id=?", (i_id,)); conn.commit(); st.rerun()
                 if c3.button("DEL", key=f"d_{i_id}"):
-                    cursor.execute("DELETE FROM items WHERE id=?"); conn.commit(); st.rerun()
+                    cursor.execute("DELETE FROM items WHERE id=?", (i_id,)); conn.commit(); st.rerun()
 
-# --- 6. SUBJECT EXPLORER (STABLE FEATURES) ---
+# --- 6. SUBJECT EXPLORER ---
 elif page == "SUBJECT EXPLORER":
     st.title("Workspace Explorer")
     display_list = filtered_subs if search_query else subjects_list
@@ -123,7 +143,6 @@ elif page == "SUBJECT EXPLORER":
         avg_mark = round(sum(mark_list)/len(mark_list), 1) if mark_list else 0.0
         eff_score = round((att_rate + avg_mark) / 2, 1) if mark_list else att_rate
 
-        # Efficiency Score Metrics
         m1, m2, m3 = st.columns(3)
         m1.metric("SYNC RATE", f"{att_rate}%")
         m2.metric("ACADEMIC AVG", f"{avg_mark}%")
@@ -164,7 +183,6 @@ elif page == "SUBJECT EXPLORER":
                 st.session_state['timer_done'] = True
                 st.rerun()
 
-    # Global Balloon Trigger
     if st.session_state.get('timer_done'):
         st.balloons()
         st.success("Session Complete! Great work.")
